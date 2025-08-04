@@ -26,9 +26,11 @@ import {
   Twitter,
   Linkedin
 } from 'lucide-react';
+import SignIn from '../pages/SignIn'; // Import the SignIn component
 
 const LandingPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showSignIn, setShowSignIn] = useState(false); // Add state for SignIn modal
   const [typewriterText, setTypewriterText] = useState('');
   const fullText = 'Build Your Own AI Universe';
 
@@ -201,7 +203,7 @@ const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white overflow-x-hidden">
+    <div className="min-h-screen min-w-screen bg-gray-900 text-white overflow-x-hidden">
       {/* Cosmic Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -285,7 +287,7 @@ const LandingPage = () => {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-8">
-              {['Home', 'Features', 'Pricing', 'Sign In'].map((item) => (
+              {['Home', 'Features', 'Pricing'].map((item) => (
                 <motion.a
                   key={item}
                   href={`#${item.toLowerCase().replace(' ', '-')}`}
@@ -295,12 +297,20 @@ const LandingPage = () => {
                   {item}
                 </motion.a>
               ))}
+              <motion.button
+                onClick={() => setShowSignIn(true)}
+                whileHover={{ scale: 1.05 }}
+                className="text-gray-300 hover:text-white transition-colors duration-300 cursor-pointer"
+              >
+                Sign In
+              </motion.button>
             </nav>
 
             {/* CTA Button Desktop */}
             <motion.button
               whileHover={{ scale: 1.05, boxShadow: "0 0 20px rgba(168, 85, 247, 0.4)" }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => setShowSignIn(true)}
               className="hidden md:block px-6 py-2 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold hover:shadow-lg transition-all duration-300"
             >
               Try Now
@@ -326,7 +336,7 @@ const LandingPage = () => {
               className="md:hidden bg-gray-900/95 backdrop-blur-lg border-t border-gray-800/50"
             >
               <div className="container mx-auto px-6 py-4 space-y-4">
-                {['Home', 'Features', 'Pricing', 'Sign In'].map((item) => (
+                {['Home', 'Features', 'Pricing'].map((item) => (
                   <a
                     key={item}
                     href={`#${item.toLowerCase().replace(' ', '-')}`}
@@ -336,7 +346,22 @@ const LandingPage = () => {
                     {item}
                   </a>
                 ))}
-                <button className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold">
+                <button 
+                  onClick={() => {
+                    setShowSignIn(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className="block text-gray-300 hover:text-white transition-colors duration-300 text-left"
+                >
+                  Sign In
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowSignIn(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold"
+                >
                   Try Now
                 </button>
               </div>
@@ -377,6 +402,7 @@ const LandingPage = () => {
                 <motion.button
                   whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(168, 85, 247, 0.4)" }}
                   whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowSignIn(true)}
                   className="px-8 py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full font-semibold text-lg flex items-center gap-2 justify-center hover:shadow-2xl transition-all duration-300"
                 >
                   <Rocket className="w-5 h-5" /> Launch Builder
@@ -694,6 +720,7 @@ const LandingPage = () => {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowSignIn(true)}
                   className={`w-full py-3 rounded-full font-semibold transition-all duration-300 ${
                     plan.popular
                       ? 'bg-gradient-to-r from-purple-500 to-cyan-500 hover:shadow-lg hover:shadow-purple-500/25'
@@ -857,6 +884,11 @@ const LandingPage = () => {
           </div>
         </div>
       </footer>
+
+      {/* Sign In Modal */}
+      <AnimatePresence>
+        {showSignIn && <SignIn onClose={() => setShowSignIn(false)} />}
+      </AnimatePresence>
     </div>
   );
 };
