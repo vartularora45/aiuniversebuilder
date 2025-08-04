@@ -98,7 +98,8 @@ const SignUp = ({ onClose }) => {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         email: formData.email.toLowerCase().trim(),
-        password: formData.password,
+        password: formData.password,  
+        role : "user"
       }),
     });
 
