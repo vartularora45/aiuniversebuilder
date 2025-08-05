@@ -48,14 +48,6 @@ const App = () => {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/builder"
-            element={
-              <ProtectedRoute>
-                <BuilderPage />
-              </ProtectedRoute>
-            }
-          />
           
           {/* Catch-all route for 404 */}
           <Route 
