@@ -6,63 +6,51 @@ import User from '../db/user.model.js';
  */
 export const protect = async (req, res, next) => {
   try {
-    // Extract Bearer token from Authorization header
-    const authHeader = req.headers.authorization ?? '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null || req.cookies.token|| req.body.token;
+    let token = null;
 
+    // 1. Check Bearer token in header
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    // 2. Fallback to cookie token if not in header
+    if (!token && req.cookies?.token) {
+      token = req.cookies.token;
+    }
+
+    // 3. Fallback to body token
+    if (!token && req.body?.token) {
+      token = req.body.token;
+    }
+
+    console.log('Token:', token); // Debug log
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: 'Not authorized to access this route (no token)'
       });
     }
 
-    // Verify token and fetch user
-    const { userId } = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(userId);
+    // Decode token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // console.log('Decoded token:', decoded); // Debug log
+    const user = await User.findById(decoded.id); // ⬅️ make sure your payload uses userId
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found for provided token'
       });
     }
 
-    if (!user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'User account is deactivated'
-      });
-    }
-
-    req.user = user;          // attach user to request
-    next();                   // proceed to next middleware
+    req.user = user; // ✅ attach user to request
+    next(); // ✅ proceed
   } catch (err) {
     console.error('Auth middleware error:', err);
     res.status(401).json({
       success: false,
-      message: 'Not authorized to access this route'
+      message: 'Not authorized, invalid or expired token'
     });
   }
-};
-
-/**
- * Grant access to specific roles
- * @param  {...string} roles Allowed roles
- */
-export const authorize = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
-    return res.status(403).json({
-      success: false,
-      message: `User role ${req.user.role} is not authorized to access this route`
-    });
-  }
-  next();
-};
-
-// Default export for backward compatibility
-export default {
-  protect,
-  authorize
 };
