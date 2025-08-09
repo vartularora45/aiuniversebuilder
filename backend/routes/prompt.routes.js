@@ -1,16 +1,21 @@
 // routes/promptRoutes.js
 
 import express from 'express';
+import multer from 'multer';
 import { body } from 'express-validator';
 import {
   generateQuestions,
   savePromptFlow,
   getPromptFlow,
-  generateFlowFromQuestions
+  generateFlowFromQuestions,
+  generateBotFromPromptAndQuestions
 } from '../cantrollers/prompt.cantroller.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Setup Multer (memory storage for PDF)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Validation rules
 const generateQuestionsValidation = [
@@ -18,7 +23,6 @@ const generateQuestionsValidation = [
   body('context').optional().isObject(),
   body('projectId').optional().isMongoId()
 ];
-
 const saveFlowValidation = [
   body('nodes').isArray({ min: 1 }),
   body('edges').isArray(),
@@ -30,8 +34,15 @@ const saveFlowValidation = [
 router.use(protect);
 
 // Routes
+router.post(
+  '/generate-bot',
+  upload.single('trainingFile'), // 👈 Add multer middleware here
+  generateQuestionsValidation,
+  generateBotFromPromptAndQuestions
+);
+
 router.post('/generate-questions', generateQuestionsValidation, generateQuestions);
-router.post('/save-flow/:projectId', saveFlowValidation, savePromptFlow);
+router.post('/save-flow/:projectId', savePromptFlow);
 router.get('/flow/:projectId', getPromptFlow);
 router.post('/generate-flow/:projectId', generateFlowFromQuestions);
 

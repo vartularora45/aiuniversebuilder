@@ -5,14 +5,14 @@ const ProtectedRoute = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
+    const isAuthenticated = localStorage.getItem('token');
     
     if (!isAuthenticated) {
       navigate('/login');
     }
   }, [navigate]);
 
-  const isAuthenticated = localStorage.getItem('isAuthenticated');
+  const isAuthenticated = localStorage.getItem('token');
   
   return isAuthenticated ? children : null;
 };

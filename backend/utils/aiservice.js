@@ -1,5 +1,6 @@
 import mockAI from './mockAI.js';
-
+import dotenv from 'dotenv';
+dotenv.config();
 // Check if Gemini is available
 const hasGemini = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '';
 
@@ -9,7 +10,20 @@ let model = null;
 if (hasGemini) {
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  model = genAI.getGenerativeModel({ model: "gemini-pro" });
+ const tryModels = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"];
+for (const m of tryModels) {
+  try {
+    const testModel = genAI.getGenerativeModel({ model: m });
+    // simple ping test
+    await testModel.generateContent("Ping test");
+    model = testModel;
+    console.log(`Using model: ${m}`);
+    break;
+  } catch (e) {
+    console.warn(`Model ${m} not available:`, e.message);
+  }
+}
+
 }
 
 /**
