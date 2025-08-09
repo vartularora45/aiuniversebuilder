@@ -8,6 +8,7 @@ import {
   savePromptFlow,
   getPromptFlow,
   generateFlowFromQuestions,
+  getAllProjects,
   generateBotFromPromptAndQuestions
 } from '../cantrollers/prompt.cantroller.js';
 import { protect } from '../middleware/auth.js';
@@ -40,7 +41,7 @@ router.post(
   generateQuestionsValidation,
   generateBotFromPromptAndQuestions
 );
-
+router.get('/projects', getAllProjects)
 router.post('/generate-questions', generateQuestionsValidation, generateQuestions);
 router.post('/save-flow/:projectId', savePromptFlow);
 router.get('/flow/:projectId', getPromptFlow);

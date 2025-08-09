@@ -1,553 +1,354 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
-import { 
-  Eye, 
-  EyeOff, 
-  Mail, 
-  Lock, 
-  User,
-  Brain,
-  Chrome,
-  X,
-  CheckCircle
-} from 'lucide-react';
-
+import axios from 'axios';
+// import { motion } from 'framer-motion'; // Comment out if not using
+import { Mail, Lock, Eye, EyeOff, User, X } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useUser } from '../context/userContext';
 const SignUp = ({ onClose }) => {
+  // Form state
+  const { login } = useUser();
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const validateForm = () => {
+  // Validation
+  const validate = () => {
     const newErrors = {};
-    
-    // First Name validation
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
-    }
-    
-    // Last Name validation
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
-    }
-    
-    // Email validation (matching schema regex)
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    } else if (formData.email.length > 50) {
-      newErrors.email = 'Email cannot be more than 50 characters';
-    }
-    
-    // Password validation (matching schema requirements)
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters long';
-    }
-    
-    // Confirm Password validation
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
+    else if (formData.email.length > 50) newErrors.email = 'Max 50 chars';
+    if (!formData.password.trim()) newErrors.password = 'Password is required';
+    else if (formData.password.length < 8) newErrors.password = 'At least 8 characters';
+    if (!formData.confirmPassword.trim()) newErrors.confirmPassword = 'Please confirm password';
+    else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // Input handler
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+  };
+
+  // Toggle password fields
+  const togglePassword = () => setShowPassword(!showPassword);
+  const toggleConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword);
+
+  // Submit handler
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!validateForm()) return;
-  
-  setIsLoading(true);
-  
-  try {
-    const response = await fetch('http://localhost:5000/api/user/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        email: formData.email.toLowerCase().trim(),
-        password: formData.password,  
-        role : "user"
-      }),
-    });
+    e.preventDefault();
+    if (!validate()) return;
 
-    const data = await response.json();
+    setLoading(true);
+    const toastId = toast.loading('Creating account...');
 
-    if (data.success) {
-      // Store user data and token
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      alert('🎉 Account created successfully!');
-      window.location.href = '/dashboard';
-    } else {
-      if (data.code === 11000) {
-        setErrors({ email: data.message });
-      } else {
-        alert(data.message || 'Failed to create account');
-      }
-    }
-  } catch (error) {
-    console.error('Signup error:', error);
-    alert('Network error. Please check your connection.');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-  // Google OAuth Success Handler
-  const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      setIsLoading(true);
-      
-      const decoded = jwtDecode(credentialResponse.credential);
-      console.log('Google User Info:', decoded);
-      
-      // Extract first and last name from Google name
-      const nameParts = decoded.name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-      
-      // Send Google signup data to backend
-      const response = await fetch('/api/auth/google-signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const res = await axios.post(
+        `${import.meta.env.VITE_URL}/user/register`,
+        {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+          role: 'user',
         },
-        body: JSON.stringify({
-          googleToken: credentialResponse.credential,
-          firstName,
-          lastName,
-          email: decoded.email,
-          isVerified: true, // Google accounts are pre-verified
-        }),
+        {
+          withCredentials: true,
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000,
+        }
+      );
+
+      // Handle response structure
+      const userData = res.data?.user || res.data?.data?.user || res.data;
+      const tokenData = res.data?.accessToken || res.data?.token || res.data?.data?.accessToken;
+      
+      
+      if (!userData) {
+        throw new Error('Invalid response format from server');
+      }
+
+      // Update context and localStorage via login()
+      login(userData, tokenData);
+      if (!userData) throw new Error('Invalid response format from server');
+
+      // Store user data if you want
+      localStorage.setItem('user', JSON.stringify(userData));
+      if (tokenData) localStorage.setItem('token', tokenData);
+      localStorage.setItem('isAuthenticated', 'true');
+
+
+      toast.success('Account created successfully! 🎉', {
+        id: toastId,
+        duration: 2000,
       });
 
-      const data = await response.json();
+      onClose();
 
-      if (response.ok) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('isAuthenticated', 'true');
+      // Short delay before redirect
+      setTimeout(() => {
         window.location.href = '/dashboard';
-      } else {
-        alert(data.message || 'Google signup failed');
-      }
-      
+      }, 500);
+
     } catch (error) {
-      console.error('Google Sign-Up Error:', error);
-      alert('Google Sign-Up failed. Please try again.');
+      console.error('Signup error:', error);
+
+      let message = 'Failed to create account. Please try again.';
+      if (error.response?.data?.code === 11000) {
+        message = error.response.data.message || 'Email already registered';
+        setErrors({ email: message });
+      } else if (error.response?.status >= 500) {
+        message = 'Server error. Please try again later.';
+      } else if (error.code === 'ECONNABORTED') {
+        message = 'Request timeout. Please check your connection.';
+      } else if (error.response?.data?.message) {
+        message = error.response.data.message;
+      }
+
+      toast.error(message, { id: toastId });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleGoogleError = () => {
-    console.error('Google Sign-Up Failed');
-    alert('Google Sign-Up failed. Please try again.');
-  };
-
-  const handleMicrosoftLogin = () => {
-    alert('Microsoft Sign-Up coming soon! Use Google or email for now.');
-  };
-
-  const handleSignInRedirect = () => {
-    window.location.href = '/login';
-  };
-
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 },
-    transition: { duration: 0.3 }
+  // Escape key to close
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape' && !loading) onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900 text-white flex items-center justify-center z-50 p-4 overflow-hidden">
-      {/* Background blur overlay */}
-      <div className="absolute inset-0 backdrop-blur-sm" onClick={onClose}></div>
-      
-      {/* Cosmic Background Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-            rotate: [0, 180, 360]
-          }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute -top-40 -left-40 w-96 h-96 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{
-            x: [0, -150, 0],
-            y: [0, 100, 0],
-            rotate: [360, 180, 0]
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute top-1/2 -right-40 w-96 h-96 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-            scale: [1, 1.2, 1]
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute -bottom-40 left-1/3 w-96 h-96 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-full blur-3xl"
-        />
-        
-        {/* Animated Stars */}
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [0, 1, 0]
-            }}
-            transition={{
-              duration: Math.random() * 3 + 2,
-              repeat: Infinity,
-              delay: Math.random() * 2
-            }}
-            className="absolute w-1 h-1 bg-white rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Main Modal */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        transition={{ duration: 0.3 }}
-        className="relative bg-gray-800/30 backdrop-blur-xl border border-gray-700/50 rounded-2xl w-full max-w-md max-h-[90vh] shadow-2xl z-10 flex flex-col"
-      >
-        {/* Fixed Header */}
-        <div className="flex-shrink-0 p-8 pb-4">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-300 hover:bg-gray-800/50 rounded-full p-2 z-10"
-          >
-            <X className="w-5 h-5" />
-          </button>
-
-          <div className="text-center">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center justify-center gap-2 text-2xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent"
-            >
-              <Brain className="w-8 h-8 text-purple-400" />
-              AI Universe
-            </motion.div>
-            
-            <motion.h2
-              {...fadeInUp}
-              className="text-2xl font-bold text-white mb-2"
-            >
-              Create Your Account
-            </motion.h2>
-            
-            <motion.p
-              {...fadeInUp}
-              className="text-gray-300"
-            >
-              Join thousands of AI creators today
-            </motion.p>
+    <div
+      role="dialog"
+      aria-labelledby="signup-title"
+      aria-modal="true"
+      onKeyDown={handleKeyDown}
+      className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm text-white flex items-center justify-center z-50 p-4"
+    >
+      <div className="absolute inset-0" onClick={!loading ? onClose : undefined}></div>
+      <div className={`relative bg-gray-800/40 backdrop-blur-xl border border-gray-700/50 rounded-2xl w-full max-w-md p-8 shadow-2xl z-10 transition-all duration-300 ${loading ? 'opacity-90' : ''}`}>
+        {/* Loading overlay */}
+        {loading && (
+          <div className="absolute inset-0 bg-gray-900/20 backdrop-blur-[1px] rounded-2xl z-50 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-300 font-medium">Creating account...</p>
+            </div>
           </div>
+        )}
+
+        <button
+          onClick={onClose}
+          disabled={loading}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors hover:bg-gray-800/50 rounded-full p-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Close sign up modal"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="text-center mb-6">
+          <h2
+            id="signup-title"
+            className="text-2xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent"
+          >
+            Create Account
+          </h2>
+          <p className="text-gray-300">Join the AI Universe</p>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-8 pb-8">
-          <style jsx>{`
-            .scrollable-content::-webkit-scrollbar {
-              width: 6px;
-            }
-            .scrollable-content::-webkit-scrollbar-track {
-              background: rgba(75, 85, 99, 0.3);
-              border-radius: 10px;
-            }
-            .scrollable-content::-webkit-scrollbar-thumb {
-              background: rgba(168, 85, 247, 0.6);
-              border-radius: 10px;
-            }
-            .scrollable-content::-webkit-scrollbar-thumb:hover {
-              background: rgba(168, 85, 247, 0.8);
-            }
-          `}</style>
-          
-          <div className="scrollable-content">
-            {/* Social Login */}
-            <motion.div
-              {...fadeInUp}
-              className="space-y-3 mb-6"
-            >
-              {/* Google Login Component */}
-              <div className="w-full">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  useOneTap={false}
-                  theme="filled_blue"
-                  size="large"
-                  text="signup_with"
-                  shape="rectangular"
-                  logo_alignment="left"
-                  width="100%"
-                />
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* First Name */}
+          <div>
+            <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-2">
+              First Name
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                id="firstName"
+                type="text"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full pl-10 pr-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.firstName ? 'border-red-500 focus:ring-red-500' : 'border-gray-600'
+                }`}
+                placeholder="First name"
+                required
+              />
+            </div>
+            {errors.firstName && (
+              <p className="text-red-400 text-sm mt-1">{errors.firstName}</p>
+            )}
+          </div>
 
-              {/* Microsoft Login (placeholder) */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleMicrosoftLogin}
-                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors duration-300"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z"/>
-                </svg>
-                Continue with Microsoft
-              </motion.button>
+          {/* Last Name */}
+          <div>
+            <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-2">
+              Last Name
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                id="lastName"
+                type="text"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full pl-10 pr-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.lastName ? 'border-red-500 focus:ring-red-500' : 'border-gray-600'
+                }`}
+                placeholder="Last name"
+                required
+              />
+            </div>
+            {errors.lastName && (
+              <p className="text-red-400 text-sm mt-1">{errors.lastName}</p>
+            )}
+          </div>
 
-              {/* Divider */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-600"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-gray-800/50 text-gray-400">or</span>
-                </div>
-              </div>
-            </motion.div>
+          {/* Email */}
+          <div>
+            <label htmlFor="signup-email" className="block text-sm font-medium text-gray-300 mb-2">
+              Email
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                id="signup-email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full pl-10 pr-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.email ? 'border-red-500 focus:ring-red-500' : 'border-gray-600'
+                }`}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+            {errors.email && (
+              <p className="text-red-400 text-sm mt-1">{errors.email}</p>
+            )}
+          </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Name Fields Row */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* First Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    First Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-800/50 backdrop-blur-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors text-white placeholder-gray-400 ${
-                        errors.firstName ? 'border-red-500' : 'border-gray-600'
-                      }`}
-                      placeholder="First name"
-                    />
-                  </div>
-                  {errors.firstName && (
-                    <p className="mt-1 text-sm text-red-400">{errors.firstName}</p>
-                  )}
-                </div>
-
-                {/* Last Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Last Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-800/50 backdrop-blur-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors text-white placeholder-gray-400 ${
-                        errors.lastName ? 'border-red-500' : 'border-gray-600'
-                      }`}
-                      placeholder="Last name"
-                    />
-                  </div>
-                  {errors.lastName && (
-                    <p className="mt-1 text-sm text-red-400">{errors.lastName}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className={`w-full pl-10 pr-4 py-3 bg-gray-800/50 backdrop-blur-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors text-white placeholder-gray-400 ${
-                      errors.email ? 'border-red-500' : 'border-gray-600'
-                    }`}
-                    placeholder="Enter your email"
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-400">{errors.email}</p>
-                )}
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className={`w-full pl-10 pr-12 py-3 bg-gray-800/50 backdrop-blur-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors text-white placeholder-gray-400 ${
-                      errors.password ? 'border-red-500' : 'border-gray-600'
-                    }`}
-                    placeholder="Create a password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-400">{errors.password}</p>
-                )}
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    className={`w-full pl-10 pr-12 py-3 bg-gray-800/50 backdrop-blur-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors text-white placeholder-gray-400 ${
-                      errors.confirmPassword ? 'border-red-500' : 'border-gray-600'
-                    }`}
-                    placeholder="Confirm your password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-400">{errors.confirmPassword}</p>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <motion.button
-                type="submit"
-                disabled={isLoading}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full py-3 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Creating Account...
-                  </div>
-                ) : (
-                  <>
-                    Create Account
-                  </>
-                )}
-              </motion.button>
-            </form>
-
-            {/* Footer Links */}
-            <div className="mt-6 text-center space-y-2">
-              <p className="text-gray-400">
-                Already have an account?
-              </p>
+          {/* Password */}
+          <div>
+            <label htmlFor="signup-password" className="block text-sm font-medium text-gray-300 mb-2">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                id="signup-password"
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full pl-10 pr-12 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.password ? 'border-red-500 focus:ring-red-500' : 'border-gray-600'
+                }`}
+                placeholder="Create a password"
+                required
+              />
               <button
-                onClick={handleSignInRedirect}
-                className="text-purple-400 hover:text-purple-300 font-semibold transition-colors duration-300"
+                type="button"
+                onClick={togglePassword}
+                disabled={loading}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                Sign In
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-
-            {/* Terms and Privacy */}
-            <p className="mt-4 text-xs text-gray-500 text-center">
-              By creating an account, you agree to our{' '}
-              <a href="#" className="text-purple-400 hover:text-purple-300">Terms of Service</a>{' '}
-              and{' '}
-              <a href="#" className="text-purple-400 hover:text-purple-300">Privacy Policy</a>
-            </p>
+            {errors.password && (
+              <p className="text-red-400 text-sm mt-1">{errors.password}</p>
+            )}
           </div>
+
+          {/* Confirm Password */}
+          <div>
+            <label htmlFor="signup-confirm" className="block text-sm font-medium text-gray-300 mb-2">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                id="signup-confirm"
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-full pl-10 pr-12 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.confirmPassword ? 'border-red-500 focus:ring-red-500' : 'border-gray-600'
+                }`}
+                placeholder="Confirm your password"
+                required
+              />
+              <button
+                type="button"
+                onClick={toggleConfirmPassword}
+                disabled={loading}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            {errors.confirmPassword && (
+              <p className="text-red-400 text-sm mt-1">{errors.confirmPassword}</p>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Creating Account...
+              </div>
+            ) : (
+              'Sign Up'
+            )}
+          </button>
+        </form>
+
+        {/* Already have account link */}
+        <div className="mt-4 text-center">
+          <p className="text-sm text-gray-400">
+            Already have an account?{' '}
+            <button
+              onClick={onClose} // Replace with your sign-in modal toggle
+              className="text-purple-400 hover:text-purple-300 transition-colors font-medium"
+              disabled={loading}
+            >
+              Sign in
+            </button>
+          </p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

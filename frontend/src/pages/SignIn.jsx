@@ -273,7 +273,9 @@ const SignIn = ({ onClose }) => {
           <p className="text-sm text-gray-400">
             Don't have an account?{' '}
             <button
-              onClick={onClose} // Replace with your signup modal toggle
+              onClick={()=>{
+                window.location.href = '/signup'; // Replace with your signup modal toggle
+              }} // Replace with your signup modal toggle
               className="text-purple-400 hover:text-purple-300 transition-colors font-medium"
               disabled={loading}
             >

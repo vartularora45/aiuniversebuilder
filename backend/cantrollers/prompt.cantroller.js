@@ -7,6 +7,7 @@ import { buildBotFromPrompt } from '../utils/botbuilderservice.js';
 import pdfParse from 'pdf-parse';
 import axios from 'axios';
 import { Readable } from 'stream';
+
 /**
  * Helper function to verify project ownership
  */
@@ -45,7 +46,7 @@ export const generateQuestions = async (req, res) => {
     if (validationError) return validationError;
 
     const { prompt, context = {}, projectId } = req.body;
-  console.log(projectId)
+    console.log(projectId)
     // Verify project ownership if projectId is provided
     if (projectId) {
       try {
@@ -87,7 +88,7 @@ export const generateQuestions = async (req, res) => {
 // @access  Private
 export const savePromptFlow = async (req, res) => {
   const session = await mongoose.startSession();
-  
+
   try {
     const validationError = handleValidationErrors(req, res);
     if (validationError) return validationError;
@@ -110,7 +111,7 @@ export const savePromptFlow = async (req, res) => {
     await session.withTransaction(async () => {
       // Find existing flow or create new one
       let flow = await PromptFlow.findOne({ project: projectId }).session(session);
-      
+
       if (flow) {
         // Update existing flow and increment version
         Object.assign(flow, {
@@ -170,7 +171,7 @@ export const savePromptFlow = async (req, res) => {
 export const getPromptFlow = async (req, res) => {
   try {
     const { projectId } = req.params;
-    
+
     // Verify project ownership
     try {
       await verifyProjectOwnership(projectId, req.user.id);
@@ -208,7 +209,6 @@ export const getPromptFlow = async (req, res) => {
     });
   }
 };
-
 
 // @desc    Generate flow nodes from questions
 // @route   POST /api/prompts/generate-flow/:projectId
@@ -253,19 +253,21 @@ export const generateFlowFromQuestions = async (req, res) => {
   }
 };
 
-/** * Generate bot code from prompt and questions
+/**
+ * Generate bot code from prompt and questions AND save the bot project right after generation
  * @param {Request} req
  * @param {Response} res
  */
-
-
-
-
 
 export const generateBotFromPromptAndQuestions = async (req, res) => {
   try {
     const { prompt, questions, trainingText, trainingLink, options = {} } = req.body;
     const trainingFile = req.file;
+
+    console.log('User ID:', req.user?.id);
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: user id missing' });
+    }
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 10) {
       return res.status(400).json({
@@ -303,7 +305,7 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
 
     if (trainingLink && typeof trainingLink === 'string') {
       try {
-        const { data } = await axios.get(trainingLink, { 
+        const { data } = await axios.get(trainingLink, {
           timeout: 15000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -329,6 +331,8 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
 
     const result = await buildBotFromPrompt(prompt.trim(), buildOptions);
 
+    console.log('buildBotFromPrompt result data:', JSON.stringify(result.data, null, 2));
+
     if (!result.success) {
       console.error('Bot generation failed:', result.error);
       return res.status(500).json({
@@ -336,8 +340,6 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
         message: result.error || 'Failed to generate bot',
       });
     }
-
-    console.log('Bot generated successfully');
 
     const formatFileStructure = (data) => {
       const structure = {
@@ -388,20 +390,55 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
 
     const formattedResponse = formatFileStructure(result.data);
 
-    return res.status(200).json({
+    // ==== SAVE GENERATED BOT TO DB ====
+    console.log(req.user.id)
+    const newProject = new BotProject({
+      owner: req.user.id,
+      name: options.projectName || `Bot Project - ${new Date().toISOString()}`,
+      description: prompt.substring(0, 100),
+      initialPrompt: prompt.trim(),
+      questions: formattedResponse.questions,
+      files: {
+        frontend: formattedResponse.frontend.files,
+        backend: formattedResponse.backend.files,
+        config: formattedResponse.config.files
+      },
+      metadata: formattedResponse.metadata,
+      trainingDataUsed: formattedResponse.trainingDataUsed,
+      status: 'completed',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    try {
+      await newProject.save();
+      console.log('New bot project saved with ID:', newProject._id);
+    } catch (saveError) {
+      console.error('Error saving new project:', saveError);
+      return res.status(500).json({ success: false, message: 'Failed to save bot project' });
+    }
+
+    const responsePayload = {
       success: true,
-      data: formattedResponse,
+      data: {
+        projectId: newProject._id,
+        botFiles: formattedResponse,
+      },
       summary: {
-        totalFiles: Object.keys(formattedResponse.frontend.files).length + 
-                   Object.keys(formattedResponse.backend.files).length + 
-                   Object.keys(formattedResponse.config.files).length,
+        totalFiles: Object.keys(formattedResponse.frontend.files).length +
+          Object.keys(formattedResponse.backend.files).length +
+          Object.keys(formattedResponse.config.files).length,
         frontendFiles: Object.keys(formattedResponse.frontend.files),
         backendFiles: Object.keys(formattedResponse.backend.files),
         configFiles: Object.keys(formattedResponse.config.files),
         questionsCount: formattedResponse.questions.length,
         trainingDataLength: finalTrainingData.length
       }
-    });
+    };
+
+    console.log('Response payload:', JSON.stringify(responsePayload, null, 2));
+
+    return res.status(200).json(responsePayload);
 
   } catch (error) {
     console.error('Bot generation error:', error);
@@ -414,6 +451,7 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
     });
   }
 };
+
 
 export const generateBotQuestions = async (req, res) => {
   try {
@@ -598,22 +636,79 @@ const getGenerationStatus = async (sessionId) => {
   };
 };
 
-export const setGenerationStatus = (sessionId, status) => {
+export const startGenerationSession = (sessionId) => {
   generationSessions.set(sessionId, {
-    ...status,
-    updatedAt: new Date().toISOString()
+    status: 'started',
+    progress: 0,
+    message: 'Generation started'
   });
-  
-  setTimeout(() => {
-    generationSessions.delete(sessionId);
-  }, 300000);
 };
 
-export default {
-  generateBotFromPromptAndQuestions,
-  generateBotQuestions,
-  validateTrainingData,
-  downloadBotFiles,
-  getBotGenerationStatus,
-  setGenerationStatus
+export const updateGenerationSession = (sessionId, progress, message) => {
+  if (generationSessions.has(sessionId)) {
+    generationSessions.set(sessionId, {
+      status: progress === 100 ? 'completed' : 'in_progress',
+      progress,
+      message
+    });
+  }
+};
+
+export const endGenerationSession = (sessionId) => {
+  generationSessions.delete(sessionId);
+};
+export const getAllProjects = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const search = req.query.search ? req.query.search.trim() : '';
+
+  try {
+    // Build the query
+    let query = {
+      owner: req.user.id,
+      // Optionally filter out deleted projects
+      deletedAt: { $exists: false }
+    };
+
+    // Add search filter if provided
+    if (search) {
+      // Case-insensitive search on name and description
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Get paginated projects
+    const projects = await BotProject.find(query)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Get total count for pagination metadata
+    const total = await BotProject.countDocuments(query);
+
+    res.json({
+      success: true,
+      data: projects,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    console.error('Get all projects error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve projects',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 };

@@ -1,549 +1,291 @@
-// services/builderservice.js
-import axios from 'axios';
-import crypto from 'crypto';
+import axios from "axios";
+import dotenv from 'dotenv'
+dotenv.config()
+/**
+ * Base URL for the OpenRouter API chat completions endpoint.
+ * @constant {string}
+ */
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const REQUEST_TIMEOUT = 45_000;
-
+/**
+ * List of supported AI models, ordered by preference.
+ * @constant {string[]}
+ */
 const SUPPORTED_MODELS = [
-  'anthropic/claude-3.5-sonnet',
-  'meta-llama/llama-3.1-70b-instruct',
-  'openai/gpt-4o-mini',
-  'meta-llama/llama-3-70b-instruct',
-  'mistralai/mistral-7b-instruct',
-  'meta-llama/llama-3-8b-instruct',
-  'qwen/qwen-2.5-72b-instruct',
-  'openai/gpt-3.5-turbo',
+  "meta-llama/llama-3-70b-instruct",
+  "qwen/qwen-2.5-72b-instruct",
+  "openai/gpt-4o",
+  "anthropic/claude-3-opus",
+  "meta-llama/llama-3-8b-instruct",
+  "openai/gpt-3.5-turbo",
 ];
 
-const MODEL_CONFIGS = {
-  creative: {
-    models: ['anthropic/claude-3.5-sonnet', 'openai/gpt-4o-mini', 'meta-llama/llama-3.1-70b-instruct'],
-    temperature: 0.7,
-    max_tokens: 4096
-  },
-  technical: {
-    models: ['anthropic/claude-3.5-sonnet', 'meta-llama/llama-3.1-70b-instruct', 'openai/gpt-4o-mini'],
-    temperature: 0.3,
-    max_tokens: 6144
-  },
-  general: {
-    models: SUPPORTED_MODELS,
-    temperature: 0.4,
-    max_tokens: 4096
-  }
-};
+/**
+ * Maximum timeout for API requests in milliseconds.
+ * @constant {number}
+ */
+const REQUEST_TIMEOUT = 45000; // Increased for larger models
 
-const cleanCodeBlock = (code) => {
-  return String(code)
-    .replace(/```[\w]*\n?/, '')
-    .replace(/```[\s]*$/, '')
-    .replace(/^[\s]*\/\*[\s\S]*?\*\/[\s]*/, '')
-    .trim();
-};
-
-const generateSessionId = () => {
-  return crypto.randomBytes(16).toString('hex');
-};
-
-const callOpenRouterWithFallback = async (messages, config = MODEL_CONFIGS.general, retries = 1) => {
+/**
+ * Calls the OpenRouter API with a fallback model list.
+ * Tries each model in order until one returns a valid response.
+ * @param {object[]} messages - Array of messages to send to the chat model.
+ * @param {string[]} [modelList=SUPPORTED_MODELS] - List of models to try.
+ * @returns {Promise<{result: string, modelUsed: string}>} - The result content and the model used.
+ * @throws {Error} If all models in the list fail.
+ */
+const callOpenRouterWithFallback = async (messages, modelList = SUPPORTED_MODELS) => {
   const errors = [];
-  const sessionId = generateSessionId();
 
-  for (const model of config.models) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const response = await axios.post(
-          OPENROUTER_API_URL,
-          {
-            model,
-            temperature: config.temperature,
-            messages,
-            max_tokens: config.max_tokens,
-            stream: false,
-            top_p: 0.9,
-            frequency_penalty: 0.1,
-            presence_penalty: 0.1
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
-              'X-Title': process.env.APP_NAME || 'Advanced Chatbot Builder',
-              'X-Session-ID': sessionId
-            },
-            timeout: REQUEST_TIMEOUT,
-          }
-        );
-
-        const result = response.data?.choices?.[0]?.message?.content?.trim();
-        const usage = response.data?.usage || {};
-        
-        if (result) {
-          return { 
-            result, 
-            modelUsed: model, 
-            sessionId,
-            usage,
-            attempt: attempt + 1
-          };
-        }
-      } catch (err) {
-        const errorMsg = err?.response?.data?.error?.message || err.message;
-        errors.push({
+  for (const model of modelList) {
+    try {
+      const response = await axios.post(
+        OPENROUTER_API_URL,
+        {
           model,
-          attempt: attempt + 1,
-          error: errorMsg,
-          status: err?.response?.status
-        });
-
-        if (attempt < retries) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          temperature: 0.3,
+          max_tokens: 4096,
+          messages,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          timeout: REQUEST_TIMEOUT,
         }
+      );
+
+      const result = response.data?.choices?.[0]?.message?.content?.trim();
+      if (result) {
+        return { result, modelUsed: model };
       }
+      errors.push({ model, error: "Empty or malformed response." });
+    } catch (err) {
+      const errorMessage = err.response?.data?.error?.message || err.message;
+      errors.push({ model, error: errorMessage });
     }
   }
 
-  throw new Error(
-    `All models failed after retries: ${errors.map((e) => 
-      `${e.model} (attempt ${e.attempt}): ${e.error}`
-    ).join('; ')}`
-  );
+  const errorDetails = errors.map((e) => `[${e.model}: ${e.error}]`).join("; ");
+  throw new Error(`All AI models failed. Errors: ${errorDetails}`);
 };
 
-export const generateQuestions = async (prompt, questionCount = 5) => {
+/**
+ * Cleans markdown code blocks and other artifacts from a code string.
+ * @param {string} code - The code string to clean.
+ * @returns {string} The cleaned code.
+ */
+const cleanCodeBlock = (code) => {
+  if (!code) return "";
+  // Improved regex to remove code fences with or without language specifier
+  return code.replace(/^``````$/, "").trim();
+};
+
+/**
+ * Generates follow-up questions for a chatbot based on a prompt.
+ * @param {string} prompt - The initial chatbot prompt.
+ * @returns {Promise<{questions: string[], modelUsed: string}>}
+ */
+export const generateQuestions = async (prompt) => {
   const messages = [
     {
-      role: 'system',
-      content: 'You generate useful chatbot questions. Return ONLY a JSON array of strings.'
+      role: "system",
+      content:
+        'You are a User Experience (UX) expert specializing in conversational design. Your task is to generate insightful, contextually relevant follow-up questions. Your response MUST BE EXCLUSIVELY a JSON array of strings, without any additional text or markdown formatting.',
     },
     {
-      role: 'user',
-      content: `Generate ${questionCount} relevant questions for this chatbot prompt:\n"${prompt}"`
-    }
+      role: "user",
+      content: `Based on the following chatbot prompt, generate 4 to 6 excellent questions that a user might ask next.
+Prompt: "${prompt}"`,
+    },
   ];
 
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(
-    messages, 
-    MODEL_CONFIGS.creative
-  );
+  const { result, modelUsed } = await callOpenRouterWithFallback(messages);
 
   try {
     const parsed = JSON.parse(result);
-    const validQuestions = parsed
-      .filter((q) => typeof q === 'string' && q.trim().length > 5 && q.includes('?'))
-      .slice(0, questionCount);
-    
+    if (Array.isArray(parsed)) {
+      return {
+        questions: parsed.filter((q) => typeof q === "string" && q.trim().length > 0),
+        modelUsed,
+      };
+    }
+    throw new Error("AI response was not an array.");
+  } catch {
+    const fallback = result
+      .split("\n")
+      .map((line) => line.replace(/^[-*"\d.]+\s*/, "").trim())
+      .filter((q) => q.length > 10 && q.includes("?"));
+    return { questions: fallback, modelUsed: `${modelUsed} (fallback)` };
+  }
+};
+
+/**
+ * Generates the complete Node.js backend code for the chatbot.
+ * @param {string} prompt - The chatbot prompt.
+ * @param {string[]} questions - Generated questions for context.
+ * @returns {Promise<{backendCode: string, modelUsed: string}>}
+ */
+export const generateBackendCode = async (prompt, questions) => {
+  const messages = [
+    {
+      role: "system",
+      content: `You are a senior software architect specializing in Node.js. Your task is to generate a single, complete, robust, production-ready Node.js/Express server file.
+Strict requirements:
+1.  **File Structure:** All code must be in a single block, as if it were one 'server.js' file.
+2.  **Express Server:** Full configuration with essential middlewares: 'cors', 'helmet', 'express.json()'.
+3.  **Chatbot Logic:** Include a 'ChatbotService' class or module to encapsulate response logic, simulating an intelligent response based on the prompt.
+4.  **WebSockets:** Integrate 'socket.io' for real-time bidirectional communication.
+5.  **API Endpoints:** A POST '/api/chat' endpoint for clients without WebSocket and a GET '/api/health' endpoint for health checks.
+6.  **Error Handling:** A centralized error handling middleware.
+7.  **Security:** Implement 'express-rate-limit' to prevent abuse.
+8.  **Validation:** Use 'express-validator' to validate API inputs.
+9.  **Environment Variables:** Use 'dotenv' to manage configuration (PORT, CORS_ORIGIN).
+10. **Clean Code:** The code must be modular, self-documented, and follow best practices. DO NOT include markdown formatting. The output must be pure JavaScript code only.`,
+    },
+    {
+      role: "user",
+      content: `Create the complete Node.js backend for a chatbot with the following behavior:
+Chatbot Prompt: "${prompt}"
+Example User Questions: ${JSON.stringify(questions)}
+
+The chatbot should be able to handle basic conversation and respond to questions related to its main prompt.`,
+    },
+  ];
+
+  const { result, modelUsed } = await callOpenRouterWithFallback(messages);
+  return { backendCode: cleanCodeBlock(result), modelUsed };
+};
+
+/**
+ * Generates the complete React frontend code for the chatbot.
+ * @param {string} prompt - The chatbot prompt.
+ * @param {string[]} questions - Generated questions for context.
+ * @returns {Promise<{frontendCode: string, modelUsed: string}>}
+ */
+export const generateFrontendCode = async (prompt, questions) => {
+  const messages = [
+    {
+      role: "system",
+      content: `You are a senior frontend engineer specializing in React and UI/UX design. Your task is to generate a single 'App.jsx' file containing a complete, modern, aesthetically pleasing chat application.
+Strict requirements:
+1.  **Modern React:** Use functional components with Hooks (useState, useEffect, useRef, useCallback).
+2.  **Styling:** Use Tailwind CSS for a clean, modern, responsive design. Include subtle animations for a better experience.
+3.  **Components:** Structure the code into logical components (e.g., ChatWindow, MessageList, MessageInput) within the same 'App.jsx' file.
+4.  **Real-Time Communication:** Integrate 'socket.io-client' to connect to the backend, send and receive messages.
+5.  **UX Features:** Implement "typing..." indicators, auto-scroll to new messages, and display the initial suggested questions.
+6.  **State Management:** Properly manage loading, error, and connection states.
+7.  **Clean Code:** The output must be a clean, production-ready block of JSX code only. DO NOT include markdown formatting.`,
+    },
+    {
+      role: "user",
+      content: `Create the React user interface for a chatbot.
+Chatbot Prompt: "${prompt}"
+Suggested Questions to show the user: ${JSON.stringify(questions)}
+
+The UI must be intuitive, attractive, and connect to the backend via WebSockets at 'ws://localhost:3001'.`,
+    },
+  ];
+
+  const { result, modelUsed } = await callOpenRouterWithFallback(messages);
+  return { frontendCode: cleanCodeBlock(result), modelUsed };
+};
+
+/**
+ * Generates 'package.json' files for the backend and frontend.
+ * @param {string} prompt - The chatbot prompt for context.
+ * @returns {Promise<{packageFiles: object, modelUsed: string}>}
+ */
+export const generatePackageFiles = async (prompt) => {
+  const messages = [
+    {
+      role: "system",
+      content: `Your task is to generate the content for two 'package.json' files. Your response MUST BE a single JSON object with two top-level keys: 'backend' and 'frontend'.
+- The 'backend' key should contain a 'package.json' for a Node.js/Express/Socket.io app. Include dependencies like 'express', 'cors', 'helmet', 'socket.io', 'dotenv', 'express-rate-limit', 'express-validator', and 'nodemon' as a devDependency.
+- The 'frontend' key should contain a 'package.json' for a React app created with Vite. Include 'react', 'react-dom', 'socket.io-client', 'axios', and devDependencies like '@vitejs/plugin-react', 'vite', 'tailwindcss', 'postcss', 'autoprefixer'.
+- Include appropriate 'start' and 'dev' scripts for both.`,
+    },
+    {
+      role: "user",
+      content: `Generate the 'package.json' files for a chatbot project based on the prompt: "${prompt}"`,
+    },
+  ];
+
+  try {
+    const { result, modelUsed } = await callOpenRouterWithFallback(messages);
+    const parsed = JSON.parse(cleanCodeBlock(result));
+    // Basic structure validation
+    if (parsed.backend && parsed.frontend) {
+      return { packageFiles: parsed, modelUsed };
+    }
+    throw new Error("The generated JSON structure is invalid.");
+  } catch (error) {
+    // Provide a robust fallback in case of failure
     return {
-      questions: validQuestions,
-      modelUsed,
-      usage,
-      metadata: {
-        totalGenerated: parsed.length,
-        validCount: validQuestions.length
-      }
-    };
-  } catch (parseError) {
-    if (process.env.DEBUG) {
-      console.error('JSON parse failed for generateQuestions:', result);
-    }
-    
-    const fallbackQuestions = result
-      .split(/\n|,/)
-      .map((line) => line.replace(/^[-*\d.\s"'\[\]]+/, '').replace(/["'\]]*$/, '').trim())
-      .filter((q) => q.length > 5 && q.includes('?'))
-      .slice(0, questionCount);
-    
-    return { 
-      questions: fallbackQuestions, 
-      modelUsed,
-      usage,
-      metadata: { 
-        fallbackUsed: true,
-        validCount: fallbackQuestions.length 
-      }
+      packageFiles: getFallbackPackageFiles(),
+      modelUsed: "fallback_hardcoded",
     };
   }
 };
 
-export const generateBackendCode = async (prompt, questions = [], features = {}) => {
-  const defaultFeatures = {
-    websocket: true,
-    rateLimit: true,
-    authentication: false,
-    database: false,
-    logging: true,
-    swagger: false,
-    ...features
-  };
-
+/**
+ * Generates essential configuration files for the project.
+ * @param {string} prompt - The chatbot prompt for context.
+ * @returns {Promise<{configFiles: object, modelUsed: string}>}
+ */
+export const generateConfigFiles = async (prompt) => {
   const messages = [
     {
-      role: 'system',
-      content: `You are a senior full-stack engineer. Generate a complete Node.js Express backend for a chatbot.
-      Include:
-      1. Express server setup with CORS
-      2. Chatbot logic class
-      3. API endpoints for chat
-      4. WebSocket support for real-time chat
-      5. Error handling middleware
-      6. Environment configuration
-      7. Rate limiting
-      8. Request validation
-
-      Return only clean, production-ready JavaScript code without markdown formatting.`
+      role: "system",
+      content: `You are a DevOps expert. Generate a collection of configuration files for a full-stack chatbot project (Node.js/React). Your response MUST BE a single JSON object where each key is a filename (e.g., 'README.md', '.env.example', 'docker-compose.yml') and its value is the file content as a string.
+      Include the following files:
+      1.  '.env.example': Environment variables for the backend (PORT, CORS_ORIGIN, OPENROUTER_API_KEY).
+      2.  'README.md': Detailed setup instructions, project structure, environment variables, and how to run locally and with Docker.
+      3.  'docker-compose.yml': A Docker Compose file to orchestrate backend and frontend services.
+      4.  'backend/Dockerfile': An optimized, multi-stage production Dockerfile for the Node.js service.
+      5.  'frontend/Dockerfile': An optimized, multi-stage production Dockerfile for the React service (build and serve with Nginx).
+      6.  'frontend/tailwind.config.js': Basic Tailwind CSS configuration.
+      7.  'frontend/postcss.config.js': PostCSS configuration.
+      8.  '.gitignore': A complete .gitignore for a Node/React project.`,
     },
     {
-      role: 'user',
-      content: `Create a Node.js backend for this chatbot:
-      Prompt: "${prompt}"
-      Questions: ${JSON.stringify(questions, null, 2)}
-      Features: ${JSON.stringify(defaultFeatures, null, 2)}
-
-      The backend should handle chat messages and provide intelligent responses based on the prompt.`
-    }
-  ];
-
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(
-    messages, 
-    MODEL_CONFIGS.technical
-  );
-  
-  return { 
-    backendCode: cleanCodeBlock(result), 
-    modelUsed,
-    usage,
-    features: defaultFeatures
-  };
-};
-
-export const generateFrontendCode = async (prompt, questions = [], uiConfig = {}) => {
-  const defaultUIConfig = {
-    theme: 'modern',
-    animations: true,
-    darkMode: true,
-    responsive: true,
-    accessibility: true,
-    components: ['chat', 'sidebar', 'header'],
-    styling: 'tailwind',
-    ...uiConfig
-  };
-
-  const messages = [
-    {
-      role: 'system',
-      content: `You are a senior frontend engineer. Generate a complete React chatbot UI.
-      Include:
-      1. Modern React functional components with hooks
-      2. Beautiful chat interface with Tailwind CSS or styled components
-      3. Real-time messaging with Socket.io
-      4. Typing indicators
-      5. Message bubbles with animations
-      6. Responsive design
-      7. Error handling and loading states
-      8. Message history
-
-      Return only clean, production-ready React code without markdown formatting.`
+      role: "user",
+      content: `Generate the configuration files for a chatbot project with the prompt: "${prompt}"`,
     },
-    {
-      role: 'user',
-      content: `Create a beautiful React frontend for this chatbot:
-      Prompt: "${prompt}"
-      Questions: ${JSON.stringify(questions, null, 2)}
-      UI Config: ${JSON.stringify(defaultUIConfig, null, 2)}
-
-      The UI should be modern, accessible, and provide a great user experience.`
-    }
-  ];
-
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(
-    messages, 
-    MODEL_CONFIGS.creative
-  );
-  
-  return { 
-    frontendCode: cleanCodeBlock(result), 
-    modelUsed,
-    usage,
-    uiConfig: defaultUIConfig
-  };
-};
-
-export const generatePackageFiles = async (prompt, features = {}) => {
-  const messages = [
-    {
-      role: 'system',
-      content: `Generate package.json files for both backend and frontend of a chatbot project.
-      Return a JSON object with 'backend' and 'frontend' keys containing the respective package.json content.
-      Include all necessary dependencies and scripts.`
-    },
-    {
-      role: 'user',
-      content: `Generate package.json files for a chatbot project based on: "${prompt}"
-      Features: ${JSON.stringify(features, null, 2)}`
-    }
   ];
 
   try {
-    const { result, modelUsed, usage } = await callOpenRouterWithFallback(
-      messages, 
-      MODEL_CONFIGS.technical
-    );
+    const { result, modelUsed } = await callOpenRouterWithFallback(messages);
     const parsed = JSON.parse(cleanCodeBlock(result));
-    return { packageFiles: parsed, modelUsed, usage };
+    return { configFiles: parsed, modelUsed };
   } catch (error) {
-    if (process.env.DEBUG) console.error('Fallback to default package files:', error.message);
-    const fallback = {
-      backend: {
-        name: 'chatbot-backend',
-        version: '1.0.0',
-        description: 'Backend server for AI chatbot',
-        main: 'server.js',
-        type: 'module',
-        scripts: {
-          start: 'node server.js',
-          dev: 'nodemon server.js',
-          test: 'jest',
-          lint: 'eslint . --ext .js'
-        },
-        dependencies: {
-          express: '^4.18.2',
-          'socket.io': '^4.7.4',
-          cors: '^2.8.5',
-          helmet: '^7.1.0',
-          dotenv: '^16.3.1',
-          'express-rate-limit': '^7.1.5',
-          'express-validator': '^7.0.1',
-          winston: '^3.11.0',
-          compression: '^1.7.4',
-          axios: '^1.6.2'
-        },
-        devDependencies: {
-          nodemon: '^3.0.2',
-          jest: '^29.7.0',
-          eslint: '^8.55.0'
-        }
-      },
-      frontend: {
-        name: 'chatbot-frontend',
-        version: '1.0.0',
-        description: 'React frontend for AI chatbot',
-        private: true,
-        dependencies: {
-          react: '^18.2.0',
-          'react-dom': '^18.2.0',
-          'react-scripts': '5.0.1',
-          'socket.io-client': '^4.7.4',
-          axios: '^1.6.2',
-          '@tailwindcss/forms': '^0.5.7',
-          '@headlessui/react': '^1.7.17',
-          'framer-motion': '^10.16.16',
-          'react-hot-toast': '^2.4.1'
-        },
-        scripts: {
-          start: 'react-scripts start',
-          build: 'react-scripts build',
-          test: 'react-scripts test',
-          eject: 'react-scripts eject'
-        },
-        devDependencies: {
-          tailwindcss: '^3.3.6',
-          autoprefixer: '^10.4.16',
-          postcss: '^8.4.32'
-        },
-        browserslist: {
-          production: ['>0.2%', 'not dead', 'not op_mini all'],
-          development: ['last 1 chrome version', 'last 1 firefox version', 'last 1 safari version']
-        }
-      }
+    return {
+      configFiles: getFallbackConfigFiles(),
+      modelUsed: "fallback_hardcoded",
     };
-    return { packageFiles: fallback, modelUsed: 'fallback', usage: null };
   }
 };
 
-export const generateConfigFiles = async (prompt, projectConfig = {}) => {
-  const messages = [
-    {
-      role: 'system',
-      content: `Generate configuration files for a chatbot project including:
-      1. .env.example file
-      2. Docker configuration (Dockerfile, docker-compose.yml)
-      3. README.md with setup instructions
-
-      Return a JSON object with file names as keys and content as values.`
-    },
-    {
-      role: 'user',
-      content: `Generate configuration files for chatbot: "${prompt}"
-      Config: ${JSON.stringify(projectConfig, null, 2)}`
-    }
-  ];
-
+/**
+ * Orchestrates the complete generation of a chatbot project from a prompt.
+ * @param {string} prompt - The main prompt defining the chatbot.
+ * @returns {Promise<object>} An object indicating success and containing the generated data, or an error.
+ */
+export const buildBotFromPrompt = async (prompt) => {
   try {
-    const { result, modelUsed, usage } = await callOpenRouterWithFallback(
-      messages, 
-      MODEL_CONFIGS.technical
-    );
-    const parsed = JSON.parse(cleanCodeBlock(result));
-    return { configFiles: parsed, modelUsed, usage };
-  } catch (error) {
-    if (process.env.DEBUG) console.error('Fallback to default config files:', error.message);
-    const fallback = {
-      '.env.example': `PORT=3001
-NODE_ENV=development
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-CORS_ORIGIN=http://localhost:3000
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-JWT_SECRET=your_jwt_secret
-SESSION_SECRET=your_session_secret
-LOG_LEVEL=info`,
-
-      'README.md': `# AI Chatbot Project
-
-A full-stack chatbot application built with Node.js, Express, React, and Socket.io.
-
-## Setup
-
-### Backend
-1. cd backend
-2. npm install
-3. cp .env.example .env
-4. npm run dev
-
-### Frontend
-1. cd frontend
-2. npm install
-3. npm start
-
-## Docker
-docker-compose up`,
-
-      'docker-compose.yml': `version: '3.8'
-
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      - PORT=3001
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"`,
-
-      'backend/Dockerfile': `FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 3001
-CMD ["npm", "start"]`,
-
-      'frontend/Dockerfile': `FROM node:18-alpine as builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-FROM nginx:alpine
-COPY --from=builder /app/build /usr/share/nginx/html
-EXPOSE 3000
-CMD ["nginx", "-g", "daemon off;"]`,
-
-      '.gitignore': `node_modules/
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-build/
-dist/
-logs/
-*.log
-.DS_Store
-coverage/`,
-
-      'nginx.conf': `events {
-    worker_connections 1024;
-}
-
-http {
-    upstream backend {
-        server backend:3001;
-    }
-
-    server {
-        listen 80;
-        
-        location /api/ {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-
-        location /socket.io/ {
-            proxy_pass http://backend;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-        }
-
-        location / {
-            root /usr/share/nginx/html;
-            index index.html;
-            try_files $uri $uri/ /index.html;
-        }
-    }
-}`
-    };
-    return { configFiles: fallback, modelUsed: 'fallback', usage: null };
-  }
-};
-
-export const buildBotFromPrompt = async (prompt, options = {}) => {
-  try {
-    const {
-      questionCount = 5,
-      features = {},
-      uiConfig = {},
-      projectConfig = {}
-    } = options;
-
-    const { questions, modelUsed: questionsModel } = await generateQuestions(prompt, questionCount);
-    const promptStr = String(prompt);
+    const { questions, modelUsed: questionsModel } = await generateQuestions(prompt);
 
     const [
-      { backendCode, modelUsed: backendModel, features: usedFeatures },
-      { frontendCode, modelUsed: frontendModel, uiConfig: usedUIConfig },
+      { backendCode, modelUsed: backendModel },
+      { frontendCode, modelUsed: frontendModel },
       { packageFiles, modelUsed: packageModel },
       { configFiles, modelUsed: configModel },
     ] = await Promise.all([
-      generateBackendCode(promptStr, questions, features),
-      generateFrontendCode(promptStr, questions, uiConfig),
-      generatePackageFiles(promptStr, features),
-      generateConfigFiles(promptStr, projectConfig),
+      generateBackendCode(prompt, questions),
+      generateFrontendCode(prompt, questions),
+      generatePackageFiles(prompt),
+      generateConfigFiles(prompt),
     ]);
 
     return {
@@ -562,14 +304,13 @@ export const buildBotFromPrompt = async (prompt, options = {}) => {
             packages: packageModel,
             config: configModel,
           },
-          features: usedFeatures,
-          uiConfig: usedUIConfig,
           generatedAt: new Date().toISOString(),
-          prompt: promptStr.substring(0, 100) + (promptStr.length > 100 ? '...' : ''),
+          prompt,
         },
       },
     };
   } catch (error) {
+    console.error("❌ Critical error during chatbot generation:", error.message);
     return {
       success: false,
       error: error.message,
@@ -578,106 +319,91 @@ export const buildBotFromPrompt = async (prompt, options = {}) => {
   }
 };
 
+/**
+ * Formats the generated data into a file structure ready for download.
+ * @param {object} generatedData - The data object from `buildBotFromPrompt`.
+ * @returns {Array<{name: string, content: string}>}
+ */
 export const formatFilesForDownload = (generatedData) => {
-  const files = [
-    { name: 'backend/server.js', content: generatedData.backendCode, type: 'javascript' },
-    { name: 'backend/package.json', content: JSON.stringify(generatedData.packageFiles.backend, null, 2), type: 'json' },
-    { name: 'frontend/src/App.js', content: generatedData.frontendCode, type: 'javascript' },
-    { name: 'frontend/package.json', content: JSON.stringify(generatedData.packageFiles.frontend, null, 2), type: 'json' },
-  ];
+  const { backendCode, frontendCode, packageFiles, configFiles } = generatedData;
 
-  Object.entries(generatedData.configFiles).forEach(([filename, content]) => {
-    files.push({
+  const files = [
+    // Backend
+    { name: "backend/server.js", content: backendCode },
+    { name: "backend/package.json", content: JSON.stringify(packageFiles.backend, null, 2) },
+
+    // Frontend
+    { name: "frontend/src/App.jsx", content: frontendCode },
+    { name: "frontend/package.json", content: JSON.stringify(packageFiles.frontend, null, 2) },
+    {
+      name: "frontend/src/index.css",
+      content: `@tailwind base;\n@tailwind components;\n@tailwind utilities;`,
+    },
+
+    // Configuration files (root and others)
+    ...Object.entries(configFiles).map(([filename, content]) => ({
       name: filename,
       content,
-      type: filename.endsWith('.json')
-        ? 'json'
-        : filename.endsWith('.md')
-        ? 'markdown'
-        : filename.endsWith('.yml') || filename.endsWith('.yaml')
-        ? 'yaml'
-        : 'text',
-    });
-  });
+    })),
+  ];
 
   return files;
 };
 
-export const generateCustomComponent = async (componentType, specifications) => {
-  const messages = [
-    {
-      role: 'system',
-      content: `Generate a React component based on specifications. Return only clean code without markdown formatting.`
+// --- Fallback Functions ---
+
+function getFallbackPackageFiles() {
+  return {
+    backend: {
+      name: "chatbot-backend",
+      version: "1.0.0",
+      main: "server.js",
+      type: "module",
+      scripts: { start: "node server.js", dev: "nodemon server.js" },
+      dependencies: {
+        cors: "^2.8.5",
+        dotenv: "^16.3.1",
+        express: "^4.18.2",
+        "express-rate-limit": "^7.1.5",
+        "express-validator": "^7.0.1",
+        helmet: "^7.1.0",
+        "socket.io": "^4.7.2",
+      },
+      devDependencies: { nodemon: "^3.0.1" },
     },
-    {
-      role: 'user',
-      content: `Create a ${componentType} component with these specifications: ${JSON.stringify(specifications, null, 2)}`
-    }
-  ];
-
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(messages, MODEL_CONFIGS.creative);
-  return { componentCode: cleanCodeBlock(result), modelUsed, usage };
-};
-
-export const generateAPIEndpoints = async (endpoints, dbSchema = null) => {
-  const messages = [
-    {
-      role: 'system',
-      content: `Generate Express.js API endpoints with proper validation, error handling, and documentation.`
+    frontend: {
+      name: "chatbot-frontend",
+      private: true,
+      version: "0.0.0",
+      type: "module",
+      scripts: { dev: "vite", build: "vite build", preview: "vite preview" },
+      dependencies: {
+        react: "^18.2.0",
+        "react-dom": "^18.2.0",
+        "socket.io-client": "^4.7.2",
+      },
+      devDependencies: {
+        "@types/react": "^18.2.45",
+        "@types/react-dom": "^18.2.18",
+        "@vitejs/plugin-react": "^4.2.1",
+        autoprefixer: "^10.4.16",
+        postcss: "^8.4.32",
+        tailwindcss: "^3.4.0",
+        vite: "^5.0.8",
+      },
     },
-    {
-      role: 'user',
-      content: `Create API endpoints for: ${JSON.stringify(endpoints, null, 2)}
-      ${dbSchema ? `Database schema: ${JSON.stringify(dbSchema, null, 2)}` : ''}`
-    }
-  ];
+  };
+}
 
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(messages, MODEL_CONFIGS.technical);
-  return { apiCode: cleanCodeBlock(result), modelUsed, usage };
-};
-
-export const generateTestSuite = async (codeType, codeContent) => {
-  const messages = [
-    {
-      role: 'system',
-      content: `Generate comprehensive test suite with Jest and appropriate testing libraries.`
-    },
-    {
-      role: 'user',
-      content: `Generate tests for this ${codeType}:\n${codeContent}`
-    }
-  ];
-
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(messages, MODEL_CONFIGS.technical);
-  return { testCode: cleanCodeBlock(result), modelUsed, usage };
-};
-
-export const optimizeCode = async (code, optimizationType = 'performance') => {
-  const messages = [
-    {
-      role: 'system',
-      content: `Optimize code for ${optimizationType}. Return only the optimized code without explanations.`
-    },
-    {
-      role: 'user',
-      content: `Optimize this code:\n${code}`
-    }
-  ];
-
-  const { result, modelUsed, usage } = await callOpenRouterWithFallback(messages, MODEL_CONFIGS.technical);
-  return { optimizedCode: cleanCodeBlock(result), modelUsed, usage };
-};
-
-export default {
-  generateQuestions,
-  generateBackendCode,
-  generateFrontendCode,
-  generatePackageFiles,
-  generateConfigFiles,
-  buildBotFromPrompt,
-  formatFilesForDownload,
-  generateCustomComponent,
-  generateAPIEndpoints,
-  generateTestSuite,
-  optimizeCode,
-};
+function getFallbackConfigFiles() {
+  return {
+    ".env.example": "PORT=3001\nCORS_ORIGIN=http://localhost:5173\n# OPENROUTER_API_KEY=your_key_here",
+    "README.md": `# AI Chatbot Project\n\nThis project was auto-generated. Follow the instructions to run it.\n\n## Backend\n1. cd backend\n2. npm install\n3. cp ../.env.example ./.env\n4. Add your API key in .env\n5. npm run dev\n\n## Frontend\n1. cd frontend\n2. npm install\n3. npm run dev\n\n## Docker\ndocker-compose up --build`,
+    ".gitignore": "# Dependencies\n/node_modules\n/.pnp\n.pnp.js\n\n# Build\n/dist\n/build\n\n# Misc\n.DS_Store\n\n# Environment\n.env\n.env.local\n.env.*\n\n# Logs\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*",
+    "docker-compose.yml": `version: '3.8'\nservices:\n  backend:\n    build: ./backend\n    ports:\n      - "3001:3001"\n    env_file:\n      - ./.env\n  frontend:\n    build: ./frontend\n    ports:\n      - "5173:5173"\n    depends_on:\n      - backend`,
+    "backend/Dockerfile": `FROM node:18-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install\nCOPY . .\nEXPOSE 3001\nCMD ["npm", "run", "dev"]`,
+    "frontend/Dockerfile": `FROM node:18-alpine AS builder\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install\nCOPY . .\nRUN npm run build\n\nFROM nginx:stable-alpine\nCOPY --from=builder /app/dist /usr/share/nginx/html\nEXPOSE 5173\nCMD ["nginx", "-g", "daemon off;"]`,
+    "frontend/tailwind.config.js": `/** @type {import('tailwindcss').Config} */\nexport default {\n  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n}`,
+    "frontend/postcss.config.js": `export default {\n  plugins: {\n    tailwindcss: {},\n    autoprefixer: {},\n  },\n}`,
+  };
+}

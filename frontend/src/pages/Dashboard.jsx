@@ -49,6 +49,7 @@ const Dashboard = () => {
   const extractProjects = (data) => {
     if (Array.isArray(data)) return data;
     if (Array.isArray(data.projects)) return data.projects;
+    if (Array.isArray(data.data)) return data.data;
     if (Array.isArray(data.data?.projects)) return data.data.projects;
     return [];
   };
@@ -56,13 +57,13 @@ const Dashboard = () => {
   // Fetch projects from backend
   const fetchProjects = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_URL}/projects`, {
+      const res = await axios.get(`${import.meta.env.VITE_URL}/prompts/projects`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const projects = extractProjects(res.data);
+      console.log(projects)
       setProjects(projects);
     } catch (err) {
-      console.error("Fetch projects error:", err);
       if (err.response?.status === 401) {
         navigate("/login");
       } else {
@@ -75,6 +76,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchProjects();
+    // eslint-disable-next-line
   }, []);
 
   // Generate questions from prompt
@@ -102,7 +104,6 @@ const Dashboard = () => {
         setBotData({ ...botData, questions: res.data.data.questions.join(", ") });
       }
     } catch (err) {
-      console.error("Generate questions error:", err);
       setSubmitError("Failed to generate questions");
     } finally {
       setIsGeneratingQuestions(false);
@@ -118,7 +119,6 @@ const Dashboard = () => {
       });
       setProjects((prev) => prev.filter((p) => p._id !== id));
     } catch (err) {
-      console.error(err);
       alert("Failed to delete project");
     }
   };
@@ -194,17 +194,16 @@ const Dashboard = () => {
           },
         }
       );
-
+      console.log(res.data)
       if (res.data.success) {
         setSubmitSuccess("Bot generated successfully!");
         setGeneratedBot(res.data.data);
         setShowBotResult(true);
-        fetchProjects(); // Refresh projects list
+        fetchProjects();
       } else {
         setSubmitError(res.data.message || "Failed to generate bot");
       }
     } catch (err) {
-      console.error("Bot generation error:", err);
       setSubmitError(err.response?.data?.message || "Failed to generate bot");
     } finally {
       setIsSubmitting(false);
@@ -249,6 +248,7 @@ const Dashboard = () => {
   const fadeInUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
   const stagger = { animate: { transition: { staggerChildren: 0.1 } } };
 
+  // --- Render ---
   return (
     <div className="min-h-screen bg-[#09090f] text-white font-mono relative">
       {/* Cosmic background */}
@@ -517,7 +517,6 @@ const Dashboard = () => {
                           </p>
                         </div>
                       </div>
-
                       {/* Tags */}
                       <div className="flex flex-wrap gap-2 mb-6">
                         <span className={`px-3 py-1 rounded-full border text-xs font-medium ${getStatusColor(project.status)}`}>
@@ -527,7 +526,6 @@ const Dashboard = () => {
                           {project.category || "general"}
                         </span>
                       </div>
-
                       {/* Actions */}
                       <div className="flex gap-2">
                         <motion.button
@@ -583,6 +581,7 @@ const Dashboard = () => {
             >
               {!showBotResult ? (
                 <>
+                  {/* --- Bot Creation Modal Form --- */}
                   <div className="flex justify-between items-center mb-8">
                     <div>
                       <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-300">
@@ -597,7 +596,6 @@ const Dashboard = () => {
                       ✕
                     </button>
                   </div>
-
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Prompt Section */}
                     <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
@@ -729,7 +727,6 @@ const Dashboard = () => {
                         </div>
                       </div>
                     </div>
-
                     {/* Status Messages */}
                     <AnimatePresence>
                       {submitSuccess && (
@@ -759,7 +756,6 @@ const Dashboard = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
-
                     {/* Action Buttons */}
                     <div className="flex gap-4 pt-6">
                       <motion.button
@@ -822,38 +818,49 @@ const Dashboard = () => {
                     </button>
                   </div>
 
-                  {generatedBot && (
-                    <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
-                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <Code className="w-5 h-5 text-blue-400" />
-                        Generated Files Summary
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-                          <h4 className="font-medium text-blue-400 mb-2">Frontend</h4>
-                          <div className="text-2xl font-bold text-white mb-1">
-                            {Object.keys(generatedBot.frontend?.files || {}).length}
-                          </div>
-                          <div className="text-sm text-gray-400">Files</div>
-                        </div>
-                        <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
-                          <h4 className="font-medium text-green-400 mb-2">Backend</h4>
-                          <div className="text-2xl font-bold text-white mb-1">
-                            {Object.keys(generatedBot.backend?.files || {}).length}
-                          </div>
-                          <div className="text-sm text-gray-400">Files</div>
-                        </div>
-                        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
-                          <h4 className="font-medium text-purple-400 mb-2">Config</h4>
-                          <div className="text-2xl font-bold text-white mb-1">
-                            {Object.keys(generatedBot.config?.files || {}).length}
-                          </div>
-                          <div className="text-sm text-gray-400">Files</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
+                {generatedBot && (
+  <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
+    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <Code className="w-5 h-5 text-blue-400" />
+      Generated Files Summary
+    </h3>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+        <h4 className="font-medium text-blue-400 mb-2">Frontend</h4>
+        <div className="text-2xl font-bold text-white mb-1">
+          {Object.keys(generatedBot?.data?.botFiles?.frontend?.files || {}).length}
+        </div>
+        <div className="text-sm text-gray-400">Files</div>
+      </div>
+      <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+        <h4 className="font-medium text-green-400 mb-2">Backend</h4>
+        <div className="text-2xl font-bold text-white mb-1">
+          {Object.keys(generatedBot?.data?.botFiles?.backend?.files || {}).length}
+        </div>
+        <div className="text-sm text-gray-400">Files</div>
+      </div>
+      <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
+        <h4 className="font-medium text-purple-400 mb-2">Config</h4>
+        <div className="text-2xl font-bold text-white mb-1">
+          {Object.keys(generatedBot?.data?.botFiles?.config?.files || {}).length}
+        </div>
+        <div className="text-sm text-gray-400">Files</div>
+      </div>
+    </div>
+    
+    {/* Total Files Count */}
+    <div className="mt-4 pt-4 border-t border-gray-700/30">
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-gray-400">Total Files Generated:</span>
+        <span className="font-semibold text-white">
+          {(Object.keys(generatedBot?.data?.botFiles?.frontend?.files || {}).length +
+            Object.keys(generatedBot?.data?.botFiles?.backend?.files || {}).length +
+            Object.keys(generatedBot?.data?.botFiles?.config?.files || {}).length)}
+        </span>
+      </div>
+    </div>
+  </div>
+)}
                   <div className="flex gap-4">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
