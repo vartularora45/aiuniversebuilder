@@ -41,10 +41,11 @@ const Dashboard = () => {
   const [generatedQuestions, setGeneratedQuestions] = useState([]);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
 
-  // Bot generation result state
+  // Bot generation result state - FIXED: New state to store complete response
   const [generatedBot, setGeneratedBot] = useState(null);
+  const [botResponse, setBotResponse] = useState(null); // NEW STATE FOR COMPLETE RESPONSE
   const [showBotResult, setShowBotResult] = useState(false);
-
+   
   // Extract projects from API response
   const extractProjects = (data) => {
     if (Array.isArray(data)) return data;
@@ -78,6 +79,26 @@ const Dashboard = () => {
     fetchProjects();
     // eslint-disable-next-line
   }, []);
+  // Add this function inside your Dashboard component, after the existing state declarations
+// and before the fetchProjects function
+
+const handleInputChange = (e) => {
+  const { name, value, type, files } = e.target;
+  
+  // Handle file inputs (like PDF upload)
+  if (type === 'file') {
+    setBotData(prev => ({
+      ...prev,
+      [name]: files[0] // Take the first file
+    }));
+  } else {
+    // Handle regular text inputs and textareas
+    setBotData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }
+};
 
   // Generate questions from prompt
   const generateQuestionsFromPrompt = async () => {
@@ -147,21 +168,12 @@ const Dashboard = () => {
     setSubmitError(null);
     setSubmitSuccess(null);
     setGeneratedBot(null);
+    setBotResponse(null); // RESET NEW STATE
     setShowBotResult(false);
     setShowCodeViewer(false);
   };
 
-  // Handle form input changes
-  const handleInputChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "trainingFile") {
-      setBotData({ ...botData, [name]: files[0] });
-    } else {
-      setBotData({ ...botData, [name]: value });
-    }
-  };
-
-  // Submit bot generation form
+  // Submit bot generation form - FIXED
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -194,10 +206,13 @@ const Dashboard = () => {
           },
         }
       );
-      console.log(res.data)
+      
+      console.log("Full Response:", res.data); // DEBUG LOG
+      
       if (res.data.success) {
         setSubmitSuccess("Bot generated successfully!");
-        setGeneratedBot(res.data.data);
+        setBotResponse(res.data); // STORE COMPLETE RESPONSE
+        setGeneratedBot(res.data.data); // KEEP OLD STATE FOR BACKWARD COMPATIBILITY
         setShowBotResult(true);
         fetchProjects();
       } else {
@@ -241,6 +256,25 @@ const Dashboard = () => {
       completed: "bg-purple-400/30 border-purple-400/60 text-purple-200",
     };
     return statusColors[status] || "bg-gray-400/30 border-gray-400/60 text-gray-200";
+  };
+
+  // FIXED: Helper function to get file counts
+  const getFileCount = (section) => {
+    if (!botResponse?.data?.botFiles) return 0;
+    
+    const sectionData = botResponse.data.botFiles[section];
+    if (!sectionData) return 0;
+    
+    // Try different possible structures
+    if (sectionData.files && typeof sectionData.files === 'object') {
+      return Object.keys(sectionData.files).length;
+    }
+    
+    if (typeof sectionData === 'object' && sectionData !== null) {
+      return Object.keys(sectionData).length;
+    }
+    
+    return 0;
   };
 
   // Animation variants
@@ -727,6 +761,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                     </div>
+                    
                     {/* Status Messages */}
                     <AnimatePresence>
                       {submitSuccess && (
@@ -756,6 +791,7 @@ const Dashboard = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    
                     {/* Action Buttons */}
                     <div className="flex gap-4 pt-6">
                       <motion.button
@@ -818,49 +854,67 @@ const Dashboard = () => {
                     </button>
                   </div>
 
-                {generatedBot && (
-  <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
-    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-      <Code className="w-5 h-5 text-blue-400" />
-      Generated Files Summary
-    </h3>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-        <h4 className="font-medium text-blue-400 mb-2">Frontend</h4>
-        <div className="text-2xl font-bold text-white mb-1">
-          {Object.keys(generatedBot?.data?.botFiles?.frontend?.files || {}).length}
-        </div>
-        <div className="text-sm text-gray-400">Files</div>
-      </div>
-      <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
-        <h4 className="font-medium text-green-400 mb-2">Backend</h4>
-        <div className="text-2xl font-bold text-white mb-1">
-          {Object.keys(generatedBot?.data?.botFiles?.backend?.files || {}).length}
-        </div>
-        <div className="text-sm text-gray-400">Files</div>
-      </div>
-      <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
-        <h4 className="font-medium text-purple-400 mb-2">Config</h4>
-        <div className="text-2xl font-bold text-white mb-1">
-          {Object.keys(generatedBot?.data?.botFiles?.config?.files || {}).length}
-        </div>
-        <div className="text-sm text-gray-400">Files</div>
-      </div>
-    </div>
-    
-    {/* Total Files Count */}
-    <div className="mt-4 pt-4 border-t border-gray-700/30">
-      <div className="flex justify-between items-center text-sm">
-        <span className="text-gray-400">Total Files Generated:</span>
-        <span className="font-semibold text-white">
-          {(Object.keys(generatedBot?.data?.botFiles?.frontend?.files || {}).length +
-            Object.keys(generatedBot?.data?.botFiles?.backend?.files || {}).length +
-            Object.keys(generatedBot?.data?.botFiles?.config?.files || {}).length)}
-        </span>
-      </div>
-    </div>
-  </div>
-)}
+                  {/* FIXED Generated Files Summary Section */}
+                  {botResponse && (
+                    <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Code className="w-5 h-5 text-blue-400" />
+                        Generated Files Summary
+                      </h3>
+                      
+                      {/* Debug info - only in development */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <div className="mb-4 p-3 bg-gray-900/50 rounded text-xs">
+                          <details>
+                            <summary className="cursor-pointer text-gray-400 mb-2">Debug: Bot Response Structure</summary>
+                            <pre className="text-gray-300 overflow-auto max-h-40">
+                              {JSON.stringify(botResponse.data?.botFiles, null, 2)}
+                            </pre>
+                          </details>
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Frontend */}
+                        <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                          <h4 className="font-medium text-blue-400 mb-2">Frontend</h4>
+                          <div className="text-2xl font-bold text-white mb-1">
+                            {getFileCount('frontend')}
+                          </div>
+                          <div className="text-sm text-gray-400">Files</div>
+                        </div>
+                        
+                        {/* Backend */}
+                        <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                          <h4 className="font-medium text-green-400 mb-2">Backend</h4>
+                          <div className="text-2xl font-bold text-white mb-1">
+                            {getFileCount('backend')}
+                          </div>
+                          <div className="text-sm text-gray-400">Files</div>
+                        </div>
+                        
+                        {/* Config */}
+                        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
+                          <h4 className="font-medium text-purple-400 mb-2">Config</h4>
+                          <div className="text-2xl font-bold text-white mb-1">
+                            {getFileCount('config')}
+                          </div>
+                          <div className="text-sm text-gray-400">Files</div>
+                        </div>
+                      </div>
+
+                      {/* Total Files Count */}
+                      <div className="mt-4 pt-4 border-t border-gray-700/30">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-400">Total Files Generated:</span>
+                          <span className="font-semibold text-white">
+                            {getFileCount('frontend') + getFileCount('backend') + getFileCount('config')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-4">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
@@ -900,17 +954,18 @@ const Dashboard = () => {
 
       {/* Code Viewer Modal */}
       <AnimatePresence>
-        {showCodeViewer && generatedBot && (
-          <CodeViewer
-            generatedBot={generatedBot}
-            onClose={() => {
-              setShowCodeViewer(false);
-              setIsCreateModalOpen(false);
-              setShowBotResult(false);
-            }}
-          />
-        )}
-      </AnimatePresence>
+  {showCodeViewer && (generatedBot || botResponse) && (
+    <CodeViewer
+      generatedBot={generatedBot}
+      botResponse={botResponse}  
+      onClose={() => {
+        setShowCodeViewer(false);
+        setIsCreateModalOpen(false);
+        setShowBotResult(false);
+      }}
+    />
+  )}
+</AnimatePresence>
     </div>
   );
 };

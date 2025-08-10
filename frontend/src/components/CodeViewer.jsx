@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Code, Copy, Download, FileText, Server, Settings, 
   ChevronRight, ChevronDown, Check, Eye, Layers,
-  Terminal, Globe, Database, Folder, File,Palette
+  Terminal, Globe, Database, Folder, File, Palette
 } from 'lucide-react';
 
-const CodeViewer = ({ generatedBot, onClose }) => {
+const CodeViewer = ({ generatedBot, botResponse, onClose }) => {
   const [activeTab, setActiveTab] = useState('frontend');
   const [expandedFiles, setExpandedFiles] = useState({});
   const [copiedFiles, setCopiedFiles] = useState({});
@@ -62,31 +62,71 @@ const CodeViewer = ({ generatedBot, onClose }) => {
     return iconMap[ext] || <File className="w-4 h-4 text-gray-400" />;
   };
 
+  // FIXED: Get files from the correct data structure
+  const getFiles = (section) => {
+    // Try botResponse structure first (from Dashboard)
+    if (botResponse?.data?.botFiles?.[section]) {
+      const sectionData = botResponse.data.botFiles[section];
+      
+      // Handle different possible structures
+      if (sectionData.files && typeof sectionData.files === 'object') {
+        return sectionData.files;
+      }
+      
+      if (typeof sectionData === 'object' && sectionData !== null) {
+        // Filter out non-file properties if any
+        const files = {};
+        Object.entries(sectionData).forEach(([key, value]) => {
+          if (typeof value === 'string' && key !== 'structure') {
+            files[key] = value;
+          }
+        });
+        return files;
+      }
+    }
+    
+    // Fallback to generatedBot structure (legacy)
+    if (generatedBot?.[section]?.files) {
+      return generatedBot[section].files;
+    }
+    
+    return {};
+  };
+
   const tabs = [
     {
       id: 'frontend',
       label: 'Frontend',
       icon: <Globe className="w-5 h-5" />,
-      files: generatedBot?.frontend?.files || {},
+      files: getFiles('frontend'),
       color: 'blue'
     },
     {
       id: 'backend',
       label: 'Backend',
       icon: <Server className="w-5 h-5" />,
-      files: generatedBot?.backend?.files || {},
+      files: getFiles('backend'),
       color: 'green'
     },
     {
       id: 'config',
       label: 'Config',
       icon: <Settings className="w-5 h-5" />,
-      files: generatedBot?.config?.files || {},
+      files: getFiles('config'),
       color: 'purple'
     }
   ];
 
   const activeTabData = tabs.find(tab => tab.id === activeTab);
+
+  // Download all files as ZIP (simplified - creates individual downloads)
+  const downloadAll = () => {
+    tabs.forEach(tab => {
+      Object.entries(tab.files).forEach(([fileName, code]) => {
+        setTimeout(() => downloadFile(code, `${tab.label.toLowerCase()}_${fileName}`), 100);
+      });
+    });
+  };
 
   return (
     <motion.div
@@ -117,6 +157,7 @@ const CodeViewer = ({ generatedBot, onClose }) => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
+              onClick={downloadAll}
               className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg font-medium flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
@@ -130,6 +171,39 @@ const CodeViewer = ({ generatedBot, onClose }) => {
             </button>
           </div>
         </div>
+
+        {/* Debug Info (only in development) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="p-4 bg-gray-900/50 border-b border-gray-700/50">
+            <details className="text-xs">
+              <summary className="cursor-pointer text-gray-400 mb-2">Debug: Data Structure</summary>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-yellow-400 mb-1">botResponse:</div>
+                  <pre className="bg-black/40 p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify(botResponse?.data?.botFiles, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <div className="text-blue-400 mb-1">generatedBot:</div>
+                  <pre className="bg-black/40 p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify(generatedBot, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <div className="text-green-400 mb-1">Current Files:</div>
+                  <pre className="bg-black/40 p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify({
+                      frontend: Object.keys(getFiles('frontend')),
+                      backend: Object.keys(getFiles('backend')),
+                      config: Object.keys(getFiles('config'))
+                    }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </details>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-gray-700/50">
@@ -226,7 +300,7 @@ const CodeViewer = ({ generatedBot, onClose }) => {
                           </div>
                           
                           <pre className="text-xs text-gray-300 bg-black/40 p-3 rounded-lg overflow-x-auto max-h-40">
-                            <code>{code.slice(0, 500)}...</code>
+                            <code>{typeof code === 'string' ? code.slice(0, 500) + (code.length > 500 ? '...' : '') : 'Invalid content'}</code>
                           </pre>
                         </div>
                       </motion.div>
@@ -244,6 +318,7 @@ const CodeViewer = ({ generatedBot, onClose }) => {
                 <div className="text-center text-gray-400">
                   <Layers className="w-16 h-16 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">No files in {activeTabData?.label}</p>
+                  <p className="text-sm mt-2">This section doesn't contain any generated files.</p>
                 </div>
               </div>
             ) : (
@@ -264,6 +339,9 @@ const CodeViewer = ({ generatedBot, onClose }) => {
                             <span className="font-semibold text-white">{fileName}</span>
                             <span className="px-2 py-1 bg-gray-700/50 rounded text-xs text-gray-300">
                               {getFileExtension(fileName).toUpperCase()}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {typeof code === 'string' ? `${code.length} chars` : 'Invalid'}
                             </span>
                           </div>
                           
@@ -298,7 +376,7 @@ const CodeViewer = ({ generatedBot, onClose }) => {
                       <div className="flex-1 overflow-auto">
                         <pre className="p-6 text-sm text-gray-300 bg-black/20 h-full">
                           <code className="whitespace-pre-wrap">
-                            {code}
+                            {typeof code === 'string' ? code : 'Error: Invalid file content'}
                           </code>
                         </pre>
                       </div>
