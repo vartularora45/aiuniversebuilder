@@ -101,35 +101,44 @@ const handleInputChange = (e) => {
 };
 
   // Generate questions from prompt
-  const generateQuestionsFromPrompt = async () => {
-    if (!botData.prompt.trim()) {
-      setSubmitError("Please enter a prompt first");
-      return;
-    }
+  // Inside your component
 
-    setIsGeneratingQuestions(true);
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_URL}/api/prompts/generate-questions`,
-        {
-          prompt: botData.prompt,
-          context: {},
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+const generateQuestionsFromPrompt = async () => {
+  if (!botData.prompt.trim()) {
+    setSubmitError("Please enter a prompt first");
+    return;
+  }
 
-      if (res.data.success) {
-        setGeneratedQuestions(res.data.data.questions);
-        setBotData({ ...botData, questions: res.data.data.questions.join(", ") });
+  setIsGeneratingQuestions(true);
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_URL}/prompts/generate-questions`,
+      {
+        prompt: botData.prompt,
+        context: {},
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
       }
-    } catch (err) {
-      setSubmitError("Failed to generate questions");
-    } finally {
-      setIsGeneratingQuestions(false);
+    );
+
+    if (res.data.success) {
+      const questionsArray = res.data.data.questions; // full objects from API
+
+      setGeneratedQuestions(questionsArray); // Store full objects
+
+      // Store only the text versions in botData
+      setBotData({
+        ...botData,
+        questions: questionsArray.map(q => q.question).join(", "),
+      });
     }
-  };
+  } catch (err) {
+    setSubmitError("Failed to generate questions");
+  } finally {
+    setIsGeneratingQuestions(false);
+  }
+};
 
   // Delete project
   const handleDelete = async (id) => {
@@ -680,23 +689,23 @@ const handleInputChange = (e) => {
                     </div>
 
                     {/* Generated Questions Display */}
-                    {generatedQuestions.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-green-900/20 border border-green-500/30 rounded-xl p-4"
-                      >
-                        <h4 className="text-green-400 font-medium mb-2">Generated Questions:</h4>
-                        <ul className="text-sm text-gray-300 space-y-1">
-                          {generatedQuestions.map((q, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <span className="text-green-400 mt-1">•</span>
-                              {q}
-                            </li>
-                          ))}
-                        </ul>
-                      </motion.div>
-                    )}
+                   {generatedQuestions.length > 0 && (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="bg-green-900/20 border border-green-500/30 rounded-xl p-4"
+  >
+    <h4 className="text-green-400 font-medium mb-2">Generated Questions:</h4>
+    <ul className="text-sm text-gray-300 space-y-1">
+      {generatedQuestions.map((q, i) => (
+        <li key={i} className="flex items-start gap-2">
+          <span className="text-green-400 mt-1">•</span>
+          {q.question} {/* Access the string property */}
+        </li>
+      ))}
+    </ul>
+  </motion.div>
+)}
 
                     {/* Questions Section */}
                     <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
