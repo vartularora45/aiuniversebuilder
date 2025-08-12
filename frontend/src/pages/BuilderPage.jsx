@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Bot, Lightbulb, Users, MessageSquare, Globe, Wifi, Mic, Image, Shield, ChevronRight, Sparkles, Rocket, CheckCircle, ArrowLeft } from 'lucide-react';
+import { 
+  Bot, Lightbulb, Users, MessageSquare, Globe, Wifi, Mic, Image, Shield, 
+  ChevronRight, ArrowLeft, Eye 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- Constants (defined outside the component for performance) ---
-
+// --- Constants ---
 const INITIAL_AI_DATA = {
   name: '',
   targetAudience: '',
@@ -28,20 +30,17 @@ const QUESTIONS = [
   { id: 'dataCollection', title: "Collect user data? 🔐", subtitle: "Define your privacy approach.", icon: <Shield />, type: 'radio', options: [{ value: 'none', label: 'No Data Collection', desc: 'Maximum privacy' }, { value: 'anonymous', label: 'Anonymous Analytics', desc: 'For usage patterns only' }, { value: 'full', label: 'Full Personalization', desc: 'For a tailored experience' }] }
 ];
 
-
-// --- Sub-components ---
-
+// --- QuestionCard ---
 const QuestionCard = ({ question, value, onChange, isInvalid }) => {
   const inputShake = {
     x: [-5, 5, -5, 5, 0],
     transition: { duration: 0.3 }
   };
   
-  const renderInput = () => {
-    // Shared class names for inputs
-    const baseInputClasses = "w-full p-4 bg-gray-50 border-2 rounded-xl focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 text-lg transition-all";
-    const invalidClasses = isInvalid ? "border-red-500 ring-red-200" : "border-gray-200";
+  const baseInputClasses = "w-full p-4 bg-gray-50 border-2 rounded-xl focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 text-lg transition-all";
+  const invalidClasses = isInvalid ? "border-red-500 ring-red-200" : "border-gray-200";
 
+  const renderInput = () => {
     switch (question.type) {
       case 'text':
         return <input type="text" value={value || ''} onChange={(e) => onChange(question.id, e.target.value)} placeholder={question.placeholder} className={`${baseInputClasses} ${invalidClasses}`} aria-invalid={isInvalid} />;
@@ -54,7 +53,6 @@ const QuestionCard = ({ question, value, onChange, isInvalid }) => {
             {question.options.map(option => <option key={option} value={option}>{option}</option>)}
           </select>
         );
-      // Other cases would be similarly styled...
       default: return null;
     }
   };
@@ -78,9 +76,37 @@ const QuestionCard = ({ question, value, onChange, isInvalid }) => {
   );
 };
 
+// --- PreviewIframe ---
+const PreviewIframe = ({ htmlContent, onClose }) => (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div className="bg-white w-[90%] h-[90%] rounded-lg overflow-hidden shadow-2xl relative">
+      <button onClick={onClose} className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 rounded-lg">Close</button>
+      <iframe
+        title="AI Preview"
+        srcDoc={htmlContent}
+        className="w-full h-full border-0"
+      />
+    </div>
+  </div>
+);
+
+// --- BlueprintSummary ---
 const BlueprintSummary = ({ aiData, onReset }) => {
-  // ... (BlueprintSummary component remains largely the same, but can also be refactored for clarity)
-  // For brevity, the previous implementation of BlueprintSummary is used here.
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Example generated HTML (replace with actual AI-generated code)
+  const generatedHTML = `
+    <html>
+      <head>
+        <style>body { font-family: sans-serif; padding: 20px; background: #f9f9f9; }</style>
+      </head>
+      <body>
+        <h1>${aiData.name || 'My AI Project'}</h1>
+        <p>${aiData.initialIdea || 'No idea provided.'}</p>
+      </body>
+    </html>
+  `;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -88,18 +114,32 @@ const BlueprintSummary = ({ aiData, onReset }) => {
       transition={{ duration: 0.5 }}
       className="max-w-4xl mx-auto"
     >
-      {/* ... Summary content ... */}
-      <div className="text-center mt-10">
-        <button onClick={onReset} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200">
+      <h2 className="text-3xl font-bold mb-4">Your AI Blueprint</h2>
+      <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
+        {JSON.stringify(aiData, null, 2)}
+      </pre>
+      
+      <div className="flex justify-center gap-4 mt-8">
+        <button
+          onClick={() => setShowPreview(true)}
+          className="flex items-center gap-2 bg-green-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-600"
+        >
+          <Eye className="w-5 h-5" /> Preview
+        </button>
+        <button
+          onClick={onReset}
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl font-semibold hover:scale-105 transition-transform duration-200"
+        >
           Build Another AI
         </button>
       </div>
+
+      {showPreview && <PreviewIframe htmlContent={generatedHTML} onClose={() => setShowPreview(false)} />}
     </motion.div>
   );
 };
 
 // --- Main Component ---
-
 const AIUniverseBuilder = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [aiData, setAiData] = useState(INITIAL_AI_DATA);

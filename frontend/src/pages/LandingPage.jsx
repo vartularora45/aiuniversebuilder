@@ -8,14 +8,12 @@ import {
   Zap, 
   Download,
   MessageSquare,
-  Image,
+  Image as ImageIcon,
   FileText,
   Code,
   Star,
   Check,
   Play,
-  ArrowRight,
-  Users,
   Globe,
   Sparkles,
   Database,
@@ -24,16 +22,49 @@ import {
   Mail,
   Github,
   Twitter,
-  Linkedin
+  Linkedin,
+  LogOut,
+  User
 } from 'lucide-react';
-import SignIn from '../pages/SignIn'; // Import the SignIn component
+import SignIn from '../pages/SignIn';
+import toast from 'react-hot-toast';
 
 const LandingPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showSignIn, setShowSignIn] = useState(false); // Add state for SignIn modal
+  const [showSignIn, setShowSignIn] = useState(false);
   const [typewriterText, setTypewriterText] = useState('');
+  const [user, setUser] = useState(null);
   const fullText = 'Build Your Own AI Universe';
 
+  // Check if user is logged in - exactly as you wanted
+  const isLoggedIn = localStorage.getItem('token') && localStorage.getItem('user');
+
+  // Get user data from localStorage
+  useEffect(() => {
+    if (isLoggedIn) {
+      try {
+        const userData = JSON.parse(localStorage.getItem('user'));
+        setUser(userData);
+        console.log('User is logged in:', userData);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
+    } else {
+      setUser(null);
+      console.log('User is not logged in');
+    }
+  }, [isLoggedIn]);
+
+  // Logout function
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
+    toast.success('Logged out successfully!');
+    setIsMenuOpen(false);
+  };
 
   // Typewriter effect
   useEffect(() => {
@@ -83,45 +114,6 @@ const LandingPage = () => {
       icon: <Download className="w-8 h-8" />,
       title: "Offline Mode & Export",
       description: "Export your AI tools as standalone apps or run them offline for maximum flexibility."
-    }
-  ];
-
-  const aiTools = [
-    {
-      icon: <MessageSquare className="w-6 h-6" />,
-      title: "Smart Chatbot",
-      description: "Conversational AI assistant",
-      color: "from-blue-500 to-cyan-500"
-    },
-    {
-      icon: <Image className="w-6 h-6" />,
-      title: "Image Generator",
-      description: "AI-powered image creation",
-      color: "from-purple-500 to-pink-500"
-    },
-    {
-      icon: <FileText className="w-6 h-6" />,
-      title: "Text Summarizer",
-      description: "Intelligent content summary",
-      color: "from-green-500 to-emerald-500"
-    },
-    {
-      icon: <Code className="w-6 h-6" />,
-      title: "Code Assistant",
-      description: "AI coding companion",
-      color: "from-orange-500 to-red-500"
-    },
-    {
-      icon: <Brain className="w-6 h-6" />,
-      title: "Data Analyzer",
-      description: "Smart data insights",
-      color: "from-indigo-500 to-purple-500"
-    },
-    {
-      icon: <Globe className="w-6 h-6" />,
-      title: "Translation Bot",
-      description: "Multi-language translator",
-      color: "from-teal-500 to-cyan-500"
     }
   ];
 
@@ -208,53 +200,24 @@ const LandingPage = () => {
       {/* Cosmic Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-            rotate: [0, 180, 360]
-          }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: "linear"
-          }}
+          animate={{ x: [0, 100, 0], y: [0, -100, 0], rotate: [0, 180, 360] }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
           className="absolute -top-40 -left-40 w-96 h-96 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-full blur-3xl"
         />
         <motion.div
-          animate={{
-            x: [0, -150, 0],
-            y: [0, 100, 0],
-            rotate: [360, 180, 0]
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "linear"
-          }}
+          animate={{ x: [0, -150, 0], y: [0, 100, 0], rotate: [360, 180, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
           className="absolute top-1/2 -right-40 w-96 h-96 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-full blur-3xl"
         />
         <motion.div
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-            scale: [1, 1.2, 1]
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear"
-          }}
+          animate={{ x: [0, 100, 0], y: [0, -50, 0], scale: [1, 1.2, 1] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
           className="absolute -bottom-40 left-1/3 w-96 h-96 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-full blur-3xl"
         />
-        
-        {/* Animated Stars */}
         {[...Array(20)].map((_, i) => (
           <motion.div
             key={i}
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [0, 1, 0]
-            }}
+            animate={{ opacity: [0, 1, 0], scale: [0, 1, 0] }}
             transition={{
               duration: Math.random() * 3 + 2,
               repeat: Infinity,
@@ -298,24 +261,64 @@ const LandingPage = () => {
                   {item}
                 </motion.a>
               ))}
-              <motion.button
-                onClick={() => setShowSignIn(true)}
-                whileHover={{ scale: 1.05 }}
-                className="text-gray-300 hover:text-white transition-colors duration-300 cursor-pointer"
-              >
-                Sign In
-              </motion.button>
+              
+              {/* Conditional Sign In / Profile Icon + Logout */}
+              {isLoggedIn ? (
+                <div className="flex items-center gap-3">
+                  {/* Profile Icon */}
+                  <div className="flex items-center gap-2 px-3 py-1 bg-gray-800/50 rounded-full border border-gray-700">
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center text-sm font-bold">
+                      {user?.first_name ? user.first_name.charAt(0).toUpperCase() : 
+                       user?.name ? user.name.charAt(0).toUpperCase() : 
+                       user?.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <span className="text-sm text-gray-300 max-w-24 truncate">
+                      {user?.first_name || user?.name || user?.email || 'User'}
+                    </span>
+                  </div>
+                  
+                  {/* Logout Button */}
+                  <motion.button
+                    onClick={handleLogout}
+                    whileHover={{ scale: 1.05 }}
+                    className="flex items-center gap-1 text-gray-300 hover:text-red-400 transition-colors duration-300 cursor-pointer px-2 py-1 rounded-lg hover:bg-gray-800/50"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm">Logout</span>
+                  </motion.button>
+                </div>
+              ) : (
+                <motion.button
+                  onClick={() => setShowSignIn(true)}
+                  whileHover={{ scale: 1.05 }}
+                  className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors duration-300 cursor-pointer"
+                >
+                  <User className="w-5 h-5" />
+                  <span>Sign In</span>
+                </motion.button>
+              )}
             </nav>
 
             {/* CTA Button Desktop */}
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: "0 0 20px rgba(168, 85, 247, 0.4)" }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowSignIn(true)}
-              className="hidden md:block px-6 py-2 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold hover:shadow-lg transition-all duration-300"
-            >
-              Try Now
-            </motion.button>
+            {isLoggedIn ? (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                onClick={() => window.location.href = '/dashboard'}
+                className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full font-semibold text-sm"
+              >
+                <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></span>
+                Dashboard
+              </motion.button>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.05, boxShadow: "0 0 20px rgba(168, 85, 247, 0.4)" }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSignIn(true)}
+                className="hidden md:block px-6 py-2 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold hover:shadow-lg transition-all duration-300"
+              >
+                Try Now
+              </motion.button>
+            )}
 
             {/* Mobile Menu Toggle */}
             <button
@@ -347,24 +350,67 @@ const LandingPage = () => {
                     {item}
                   </a>
                 ))}
-                <button 
-                  onClick={() => {
-                    setShowSignIn(true);
-                    setIsMenuOpen(false);
-                  }}
-                  className="block text-gray-300 hover:text-white transition-colors duration-300 text-left"
-                >
-                  Sign In
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowSignIn(true);
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold"
-                >
-                  Try Now
-                </button>
+                
+                {/* Mobile Profile / Sign In */}
+                {isLoggedIn ? (
+                  <>
+                    <div className="flex items-center gap-3 py-2 border-t border-gray-700">
+                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center text-sm font-bold">
+                        {user?.first_name ? user.first_name.charAt(0).toUpperCase() : 
+                         user?.name ? user.name.charAt(0).toUpperCase() : 
+                         user?.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div>
+                        <p className="text-gray-300 text-sm font-medium">
+                          {user?.first_name || user?.name || 'User'}
+                        </p>
+                        {user?.email && (
+                          <p className="text-gray-500 text-xs">{user.email}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        window.location.href = '/dashboard';
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full font-semibold mb-2"
+                    >
+                      Go to Dashboard
+                    </button>
+                    
+                    <button 
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 text-gray-300 hover:text-red-400 transition-colors duration-300 text-left py-2"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => {
+                        setShowSignIn(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors duration-300 text-left"
+                    >
+                      <User className="w-5 h-5" />
+                      Sign In
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowSignIn(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full font-semibold"
+                    >
+                      Try Now
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           )}
@@ -403,10 +449,11 @@ const LandingPage = () => {
                 <motion.button
                   whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(168, 85, 247, 0.4)" }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowSignIn(true)}
+                  onClick={() => isLoggedIn ? window.location.href = '/dashboard' : setShowSignIn(true)}
                   className="px-8 py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full font-semibold text-lg flex items-center gap-2 justify-center hover:shadow-2xl transition-all duration-300"
                 >
-                  <Rocket className="w-5 h-5" /> Launch Builder
+                  <Rocket className="w-5 h-5" />
+                  {isLoggedIn ? 'Go to Dashboard' : 'Launch Builder'}
                 </motion.button>
                 
                 <motion.button
@@ -417,6 +464,23 @@ const LandingPage = () => {
                   <Play className="w-5 h-5" /> Watch Demo
                 </motion.button>
               </motion.div>
+
+              {/* User Welcome Message */}
+              {isLoggedIn && user && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1 }}
+                  className="mt-6 p-4 bg-gradient-to-r from-purple-900/30 to-cyan-900/30 border border-purple-500/20 rounded-xl backdrop-blur-sm"
+                >
+                  <p className="text-lg">
+                    Welcome back, <span className="font-semibold text-purple-400">
+                      {user.first_name || user.name || user.email || 'User'}
+                    </span>! 
+                    Ready to continue building your AI universe?
+                  </p>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* AI Dashboard Mockup */}
@@ -427,7 +491,6 @@ const LandingPage = () => {
               className="relative"
             >
               <div className="relative">
-                {/* Main Dashboard */}
                 <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 shadow-2xl">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-3 h-3 bg-red-500 rounded-full"></div>
@@ -437,21 +500,25 @@ const LandingPage = () => {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    {aiTools.slice(0, 4).map((tool, index) => (
+                    {[0,1,2,3].map((i) => (
                       <motion.div
-                        key={index}
-                        whileHover={{ scale: 1.05 }}
-                        className={`p-4 rounded-xl bg-gradient-to-br ${tool.color} bg-opacity-20 border border-gray-600`}
+                        key={i}
+                        whileHover={{ scale: 1.03 }}
+                        className="p-4 rounded-xl bg-gray-700/40 border border-gray-600"
                       >
-                        <div className="text-white mb-2">{tool.icon}</div>
-                        <h4 className="text-sm font-semibold text-white">{tool.title}</h4>
-                        <p className="text-xs text-gray-300 mt-1">{tool.description}</p>
+                        <div className="text-white mb-2">
+                          {i === 0 ? <MessageSquare className="w-6 h-6" /> :
+                           i === 1 ? <ImageIcon className="w-6 h-6" /> :
+                           i === 2 ? <FileText className="w-6 h-6" /> :
+                           <Code className="w-6 h-6" />}
+                        </div>
+                        <h4 className="text-sm font-semibold text-white">Module {i+1}</h4>
+                        <p className="text-xs text-gray-300 mt-1">Preview</p>
                       </motion.div>
                     ))}
                   </div>
                 </div>
 
-                {/* Floating Elements */}
                 <motion.div
                   animate={{ y: [-10, 10, -10] }}
                   transition={{ duration: 3, repeat: Infinity }}
@@ -529,7 +596,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Tool Showcase Section */}
+      {/* Bot Preview Section */}
       <section className="py-20 px-6">
         <div className="container mx-auto">
           <motion.div
@@ -543,41 +610,45 @@ const LandingPage = () => {
               variants={fadeInUp}
               className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
             >
-              AI Tools You Can Build
+              Bot Preview
             </motion.h2>
             <motion.p
               variants={fadeInUp}
               className="text-xl text-gray-300 max-w-2xl mx-auto"
             >
-              From chatbots to image generators, create any AI tool you can imagine
+              Aapke AI bot ka preview niche diya gaya hai.
             </motion.p>
           </motion.div>
 
           <motion.div
-            initial="initial"
-            whileInView="animate"
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            variants={staggerContainer}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            transition={{ duration: 0.8 }}
+            className="max-w-4xl mx-auto"
           >
-            {aiTools.map((tool, index) => (
-              <motion.div
-                key={index}
-                variants={fadeInUp}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className={`group p-6 rounded-2xl bg-gradient-to-br ${tool.color} bg-opacity-10 backdrop-blur-sm border border-gray-700/50 hover:border-opacity-50 transition-all duration-300`}
-              >
-                <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${tool.color} bg-opacity-20 mb-4`}>
-                  {tool.icon}
+            <div className="relative rounded-3xl overflow-hidden border border-gray-700/60 bg-gray-800/40 backdrop-blur-sm shadow-2xl">
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-500/10 via-cyan-500/10 to-blue-500/10 blur-2xl" />
+              </div>
+
+              <div className="p-6 md:p-10">
+                <div className="flex items-center justify-center">
+                  <img
+                    alt="AI Bot"
+                    className="w-full max-w-2xl rounded-2xl border border-gray-700/60 shadow-lg"
+                    loading="lazy"
+                    src={`data:image/png;base64,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==`}
+                  />
                 </div>
-                <h3 className="text-xl font-semibold mb-2 text-white">
-                  {tool.title}
-                </h3>
-                <p className="text-gray-300 group-hover:text-gray-200 transition-colors duration-300">
-                  {tool.description}
-                </p>
-              </motion.div>
-            ))}
+
+                <div className="mt-6 text-center text-gray-300">
+                  <p className="text-lg">
+                    Chat with your AI bot, customize its tone, and deploy with one click.
+                  </p>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -721,14 +792,14 @@ const LandingPage = () => {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowSignIn(true)}
+                  onClick={() => isLoggedIn ? window.location.href = '/dashboard' : setShowSignIn(true)}
                   className={`w-full py-3 rounded-full font-semibold transition-all duration-300 ${
                     plan.popular
                       ? 'bg-gradient-to-r from-purple-500 to-cyan-500 hover:shadow-lg hover:shadow-purple-500/25'
                       : 'bg-gray-700 hover:bg-gray-600 text-white'
                   }`}
                 >
-                  {plan.buttonText}
+                  {isLoggedIn ? 'Upgrade Plan' : plan.buttonText}
                 </motion.button>
               </motion.div>
             ))}
