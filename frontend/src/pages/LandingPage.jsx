@@ -34,6 +34,7 @@ const LandingPage = () => {
   const [typewriterText, setTypewriterText] = useState('');
   const fullText = 'Build Your Own AI Universe';
 
+
   // Typewriter effect
   useEffect(() => {
     let index = 0;

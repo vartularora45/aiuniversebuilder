@@ -42,7 +42,6 @@ const App = () => {
             {/* Here we pass onClose only if the component actually uses it */}
             <Route path="/login" element={<WithCloseWrapper Component={SignIn} />} />
             <Route path="/signup" element={<WithCloseWrapper Component={SignupPage} />} />
-
             {/* Protected Routes */}
             <Route
               path="/dashboard"
@@ -57,7 +56,7 @@ const App = () => {
             <Route
               path="*"
               element={
-                <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+                <div className="min-h-screen min-w-screen bg-gray-900 text-white flex items-center justify-center">
                   <div className="text-center">
                     <h1 className="text-4xl font-bold mb-4">404</h1>
                     <p>Page not found</p>

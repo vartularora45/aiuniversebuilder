@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import UserRoutes from "./routes/user.routes.js"
 import ProjectRoutes from "./routes/project.routes.js";
 import PromptRoutes from "./routes/prompt.routes.js";
+import modelroutes from "./routes/model.routes.js"
 // import Workspaceoutes from "./routes/workspace.routes.js";
 const app = express();
 app.use(express.json());
@@ -17,7 +18,7 @@ app.use(cors(
 ));
 app.use(cookieParser());
 connectToDb()
-
+app.use('/api/model',modelroutes);
 app.use("/api/user", UserRoutes);
 app.use("/api/projects", ProjectRoutes);
 app.use("/api/prompts", PromptRoutes);
