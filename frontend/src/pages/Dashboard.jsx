@@ -9,6 +9,7 @@ import {
   Play, Pause, Trash2, Edit3, Eye, Download, RefreshCw, Save, X
 } from "lucide-react";
 import CodeViewer from "../components/CodeViewer";
+import BotSuggestions from "../components/BotSuggestions"; // ⭐ NEW IMPORT
 
 const Dashboard = () => {
   // Core state
@@ -57,6 +58,10 @@ const Dashboard = () => {
   const [generatedBot, setGeneratedBot] = useState(null);
   const [botResponse, setBotResponse] = useState(null);
   const [showBotResult, setShowBotResult] = useState(false);
+
+  // ⭐ NEW STATES FOR SUGGESTIONS
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [lastGeneratedBot, setLastGeneratedBot] = useState(null);
    
   // Extract projects from API response
   const extractProjects = (data) => {
@@ -142,13 +147,13 @@ const Dashboard = () => {
     }
   };
 
-  // View project functionality - UPDATED
+  // View project functionality
   const handleViewFlow = (project) => {
     setSelectedProject(project);
     setShowViewModal(true);
   };
 
-  // Edit project functionality - UPDATED
+  // Edit project functionality
   const handleEdit = (project) => {
     setSelectedProject(project);
     setEditFormData({
@@ -233,12 +238,45 @@ const Dashboard = () => {
     setShowCodeViewer(false);
   };
 
-  // Submit bot generation form
+  // ⭐ NEW FUNCTION - Suggestion handler
+  const handleSuggestionSelect = (suggestion) => {
+    // Close suggestions modal
+    setShowSuggestions(false);
+    
+    // Pre-fill create modal with suggestion data
+    setBotData({
+      prompt: suggestion.initialPrompt || suggestion.description || "",
+      questions: suggestion.tags ? suggestion.tags.join(", ") : "",
+      trainingText: "",
+      trainingLink: "",
+      trainingFile: null,
+    });
+    
+    // Keep create modal open for new bot
+    setShowBotResult(false);
+  };
+
+  // Submit bot generation form - UPDATED WITH SUGGESTIONS
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitError(null);
     setSubmitSuccess(null);
+
+    // ⭐ NEW: Set data for suggestions BEFORE generation starts
+    setLastGeneratedBot({
+      _id: Date.now(), // temporary ID
+      name: "Generated Bot",
+      category: "other",
+      initialPrompt: botData.prompt,
+      description: botData.prompt.substring(0, 100) + "...",
+      tags: botData.questions ? botData.questions.split(",").map(q => q.trim()) : []
+    });
+
+    // ⭐ NEW: Show suggestions modal during generation
+    setTimeout(() => {
+      setShowSuggestions(true);
+    }, 2000); // 2 seconds बाद show होगा
 
     const formData = new FormData();
     formData.append("prompt", botData.prompt);
@@ -274,6 +312,13 @@ const Dashboard = () => {
         setBotResponse(res.data);
         setGeneratedBot(res.data.data);
         setShowBotResult(true);
+        
+        // ⭐ NEW: Update bot data after generation completes
+        setLastGeneratedBot(prev => ({
+          ...prev,
+          ...res.data.data
+        }));
+        
         fetchProjects();
       } else {
         setSubmitError(res.data.message || "Failed to generate bot");
@@ -616,7 +661,7 @@ const Dashboard = () => {
                           {project.category || "general"}
                         </span>
                       </div>
-                      {/* Actions - UPDATED CLICK HANDLERS */}
+                      {/* Actions */}
                       <div className="flex gap-2">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
@@ -654,6 +699,7 @@ const Dashboard = () => {
         </main>
       </div>
 
+      {/* All your existing modals remain exactly the same */}
       {/* View Project Modal */}
       <AnimatePresence>
         {showViewModal && selectedProject && (
@@ -1212,7 +1258,8 @@ const Dashboard = () => {
                       </div>
                     </div>
                   )}
-                  <div className="flex gap-4">  
+
+                  <div className="flex gap-4">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
@@ -1263,6 +1310,16 @@ const Dashboard = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* ⭐ NEW - BotSuggestions Component */}
+      <BotSuggestions
+        generatedBotData={lastGeneratedBot}
+        onSuggestionSelect={handleSuggestionSelect}
+        onClose={() => setShowSuggestions(false)}
+        isVisible={showSuggestions}
+        userToken={token}
+        isGenerating={isSubmitting}
+      />
     </div>
   );
 };

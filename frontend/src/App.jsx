@@ -9,6 +9,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import BuilderPage from './pages/BuilderPage.jsx';
 import { UserProvider } from './context/userContext.jsx';
 import { Toaster } from 'react-hot-toast';
+import BotSuggestions from './components/BotSuggestions.jsx';
 
 const App = () => {
   // ✅ Google OAuth Client ID
