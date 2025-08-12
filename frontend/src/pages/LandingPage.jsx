@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import tusharImg from '../assets/tushar.png';
+
 import { 
   Menu, 
   X, 
@@ -491,33 +493,16 @@ const LandingPage = () => {
               className="relative"
             >
               <div className="relative">
-                <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 shadow-2xl">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-sm text-gray-400 ml-2">AI Universe Builder</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {[0,1,2,3].map((i) => (
-                      <motion.div
-                        key={i}
-                        whileHover={{ scale: 1.03 }}
-                        className="p-4 rounded-xl bg-gray-700/40 border border-gray-600"
-                      >
-                        <div className="text-white mb-2">
-                          {i === 0 ? <MessageSquare className="w-6 h-6" /> :
-                           i === 1 ? <ImageIcon className="w-6 h-6" /> :
-                           i === 2 ? <FileText className="w-6 h-6" /> :
-                           <Code className="w-6 h-6" />}
-                        </div>
-                        <h4 className="text-sm font-semibold text-white">Module {i+1}</h4>
-                        <p className="text-xs text-gray-300 mt-1">Preview</p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
+                <motion.div
+  whileHover={{ scale: 1.05 }}
+  className="w-80 h-[420px] rounded-full overflow-hidden border-4 border-gray-600 shadow-xl mx-auto"
+>
+  <img
+    src={tusharImg}
+    
+    className="w-full h-full object-cover object-center scale-[2] -translate-y-16"
+  />
+</motion.div>
 
                 <motion.div
                   animate={{ y: [-10, 10, -10] }}
@@ -597,128 +582,151 @@ const LandingPage = () => {
       </section>
 
       {/* Bot Preview Section */}
-      <section className="py-20 px-6">
-        <div className="container mx-auto">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeInUp}
-              className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
-            >
-              Bot Preview
-            </motion.h2>
-            <motion.p
-              variants={fadeInUp}
-              className="text-xl text-gray-300 max-w-2xl mx-auto"
-            >
-              Aapke AI bot ka preview niche diya gaya hai.
-            </motion.p>
-          </motion.div>
+     <section className="py-20 px-6">
+  <div className="container mx-auto">
+    {/* Heading */}
+    <motion.div
+      initial="initial"
+      whileInView="animate"
+      viewport={{ once: true }}
+      variants={staggerContainer}
+      className="text-center mb-16"
+    >
+      <motion.h2
+        variants={fadeInUp}
+        className="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+      >
+        Bot Preview
+      </motion.h2>
+      <motion.p
+        variants={fadeInUp}
+        className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto"
+      >
+        Experience your AI bot in action — sleek, smart, and easy to deploy.
+      </motion.p>
+    </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="max-w-4xl mx-auto"
-          >
-            <div className="relative rounded-3xl overflow-hidden border border-gray-700/60 bg-gray-800/40 backdrop-blur-sm shadow-2xl">
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-500/10 via-cyan-500/10 to-blue-500/10 blur-2xl" />
-              </div>
+    {/* Preview Card */}
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.8 }}
+      className="max-w-4xl mx-auto"
+    >
+      <div className="relative rounded-3xl overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-lg shadow-2xl">
+        {/* Gradient Glow */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/20 via-cyan-500/20 to-blue-500/20 blur-3xl pointer-events-none" />
 
-              <div className="p-6 md:p-10">
-                <div className="flex items-center justify-center">
-                  <img
-                    alt="AI Bot"
-                    className="w-full max-w-2xl rounded-2xl border border-gray-700/60 shadow-lg"
-                    loading="lazy"
-                    src={`data:image/png;base64,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==`}
-                  />
-                </div>
+        {/* Content */}
+        <div className="p-6 md:p-10 relative z-10">
+          {/* Bot Image */}
+<div className="flex justify-center items-center gap-4">
+  <span className="text-6xl select-none">🤖</span>
+  
+</div>
 
-                <div className="mt-6 text-center text-gray-300">
-                  <p className="text-lg">
-                    Chat with your AI bot, customize its tone, and deploy with one click.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
 
-      {/* How It Works Section */}
-      <section className="py-20 px-6">
-        <div className="container mx-auto">
-          <motion.div
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className="text-center mb-16"
-          >
-            <motion.h2
-              variants={fadeInUp}
-              className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent"
-            >
-              How It Works
-            </motion.h2>
-            <motion.p
-              variants={fadeInUp}
-              className="text-xl text-gray-300 max-w-2xl mx-auto"
-            >
-              Build powerful AI tools in three simple steps
-            </motion.p>
-          </motion.div>
+          {/* Caption + Try Button */}
+          <div className="mt-6 text-center text-gray-300">
+            <p className="text-lg mb-4">
+              Chat with your AI bot, customize its tone, and deploy instantly.
+            </p>
 
-          <div className="max-w-4xl mx-auto">
-            {steps.map((step, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: index % 2 === 0 ? -100 : 100 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.8, delay: index * 0.2 }}
-                className={`flex flex-col lg:flex-row items-center gap-8 mb-16 ${
-                  index % 2 === 1 ? 'lg:flex-row-reverse' : ''
-                }`}
-              >
-                <div className="flex-1">
-                  <div className="text-6xl font-bold text-purple-500/20 mb-4">
-                    {step.number}
-                  </div>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="p-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl">
-                      {step.icon}
-                    </div>
-                    <h3 className="text-2xl font-bold text-white">
-                      {step.title}
-                    </h3>
-                  </div>
-                  <p className="text-lg text-gray-300">
-                    {step.description}
-                  </p>
-                </div>
-                
-                <div className="flex-1">
-                  <div className="w-full h-64 bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-2xl flex items-center justify-center">
-                    <div className="text-gray-500 text-center">
-                      <div className="text-8xl mb-4">{step.icon}</div>
-                      <p>Step {step.number} Preview</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            
           </div>
         </div>
-      </section>
+      </div>
+    </motion.div>
+  </div>
+</section>
+      {/* How It Works Section */}
+      {/* How It Works Section */}
+<section className="py-20 px-6">
+  <div className="container mx-auto">
+    <motion.div
+      initial="initial"
+      whileInView="animate"
+      viewport={{ once: true }}
+      variants={staggerContainer}
+      className="text-center mb-16"
+    >
+      <motion.h2
+        variants={fadeInUp}
+        className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent"
+      >
+        How It Works
+      </motion.h2>
+      <motion.p
+        variants={fadeInUp}
+        className="text-xl text-gray-300 max-w-2xl mx-auto"
+      >
+        Build your AI chatbot in three simple steps
+      </motion.p>
+    </motion.div>
+
+    {/* Steps Array */}
+    {[
+      {
+        number: "1",
+        icon: "📂",
+        title: "Upload Your Data",
+        description:
+          "Add your documents, PDFs, or website links. Our system instantly processes and prepares them for AI training."
+      },
+      {
+        number: "2",
+        icon: "⚡",
+        title: "Train Your Chatbot",
+        description:
+          "BotSmith connects your data with GPT-4 and creates a smart, context-aware chatbot—no coding required."
+      },
+      {
+        number: "3",
+        icon: "🚀",
+        title: "Deploy Anywhere",
+        description:
+          "Get your chatbot’s embed code and launch it on your website or connect it to WhatsApp, Slack, and more."
+      }
+    ].map((step, index) => (
+      <motion.div
+        key={index}
+        initial={{ opacity: 0, x: index % 2 === 0 ? -100 : 100 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8, delay: index * 0.2 }}
+        className={`flex flex-col lg:flex-row items-center gap-8 mb-16 ${
+          index % 2 === 1 ? "lg:flex-row-reverse" : ""
+        }`}
+      >
+        <div className="flex-1">
+          <div className="text-6xl font-bold text-purple-500/20 mb-4">
+            {step.number}
+          </div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl">
+              <span className="text-3xl">{step.icon}</span>
+            </div>
+            <h3 className="text-2xl font-bold text-white">
+              {step.title}
+            </h3>
+          </div>
+          <p className="text-lg text-gray-300">{step.description}</p>
+        </div>
+
+        <div className="flex-1">
+          <div className="w-full h-64 bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-2xl flex items-center justify-center">
+            <div className="text-gray-500 text-center">
+              <div className="text-8xl mb-4">{step.icon}</div>
+              <p>Step {step.number} Preview</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    ))}
+  </div>
+</section>
+
 
       {/* Pricing Section */}
       <section id="pricing" className="py-20 px-6">
