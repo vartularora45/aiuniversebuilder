@@ -3,13 +3,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Code, Copy, Download, FileText, Server, Settings, 
   ChevronRight, ChevronDown, Check, Eye, Layers,
-  Terminal, Globe, Database, Folder, File, Palette
+  Terminal, Globe, Database, Folder, File, Palette,
+  Play, Monitor, Smartphone, Zap
 } from 'lucide-react';
+import PreviewIframe from './PreviewIframe';
+import BackendTester from './BackendTester';
 
 const CodeViewer = ({ generatedBot, botResponse, onClose }) => {
   const [activeTab, setActiveTab] = useState('frontend');
   const [expandedFiles, setExpandedFiles] = useState({});
   const [copiedFiles, setCopiedFiles] = useState({});
+  const [showPreview, setShowPreview] = useState(false);
+  const [showBackendTester, setShowBackendTester] = useState(false);
 
   // Toggle file expansion
   const toggleFile = (fileName) => {
@@ -93,6 +98,40 @@ const CodeViewer = ({ generatedBot, botResponse, onClose }) => {
     return {};
   };
 
+  // Get frontend code for preview
+  const getFrontendCode = () => {
+    const frontendFiles = getFiles('frontend');
+    // Look for main React component files
+    const mainFiles = ['App.jsx', 'App.js', 'index.jsx', 'index.js', 'main.jsx', 'main.js'];
+    
+    for (const fileName of mainFiles) {
+      if (frontendFiles[fileName]) {
+        return frontendFiles[fileName];
+      }
+    }
+    
+    // Return first file if no main file found
+    const firstFile = Object.values(frontendFiles)[0];
+    return firstFile || '';
+  };
+
+  // Get backend code for testing
+  const getBackendCode = () => {
+    const backendFiles = getFiles('backend');
+    // Look for main server files
+    const mainFiles = ['server.js', 'app.js', 'index.js', 'main.js'];
+    
+    for (const fileName of mainFiles) {
+      if (backendFiles[fileName]) {
+        return backendFiles[fileName];
+      }
+    }
+    
+    // Return first file if no main file found
+    const firstFile = Object.values(backendFiles)[0];
+    return firstFile || '';
+  };
+
   const tabs = [
     {
       id: 'frontend',
@@ -154,6 +193,29 @@ const CodeViewer = ({ generatedBot, botResponse, onClose }) => {
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Preview Buttons */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowPreview(true)}
+              disabled={!getFrontendCode()}
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              <Monitor className="w-4 h-4" />
+              Preview Frontend
+            </motion.button>
+            
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowBackendTester(true)}
+              disabled={!getBackendCode()}
+              className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              <Terminal className="w-4 h-4" />
+              Test Backend
+            </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -388,6 +450,23 @@ const CodeViewer = ({ generatedBot, botResponse, onClose }) => {
           </div>
         </div>
       </motion.div>
+
+      {/* Frontend Preview Modal */}
+      <PreviewIframe
+        frontendCode={getFrontendCode()}
+        backendCode={getBackendCode()}
+        isVisible={showPreview}
+        onClose={() => setShowPreview(false)}
+        onError={(error) => console.error('Preview error:', error)}
+      />
+
+      {/* Backend Tester Modal */}
+      <BackendTester
+        backendCode={getBackendCode()}
+        isVisible={showBackendTester}
+        onClose={() => setShowBackendTester(false)}
+        onError={(error) => console.error('Backend tester error:', error)}
+      />
     </motion.div>
   );
 };

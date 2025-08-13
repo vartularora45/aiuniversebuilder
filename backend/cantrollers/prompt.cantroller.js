@@ -261,7 +261,7 @@ export const generateFlowFromQuestions = async (req, res) => {
 
 export const generateBotFromPromptAndQuestions = async (req, res) => {
   try {
-    const { prompt, questions, trainingText, trainingLink, options = {} } = req.body;
+    const { prompt, questions: questionsRaw, trainingText, trainingLink, options = {} } = req.body;
     const trainingFile = req.file;
 
     console.log('User ID:', req.user?.id);
@@ -276,11 +276,29 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
       });
     }
 
-    if (questions && !Array.isArray(questions)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Questions must be an array if provided',
-      });
+    // ⭐ FIX: Parse questions JSON string to array
+    let questions = [];
+    if (questionsRaw) {
+      try {
+        if (typeof questionsRaw === 'string') {
+          questions = JSON.parse(questionsRaw);
+        } else if (Array.isArray(questionsRaw)) {
+          questions = questionsRaw;
+        }
+        
+        // Validate that it's an array after parsing
+        if (!Array.isArray(questions)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Questions must be an array if provided',
+          });
+        }
+      } catch (parseError) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid questions format. Must be a valid JSON array.',
+        });
+      }
     }
 
     let finalTrainingData = '';
@@ -326,10 +344,11 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
       features: options.features || {},
       uiConfig: options.uiConfig || {},
       projectConfig: options.projectConfig || {},
-      trainingData: finalTrainingData.trim()
+      trainingData: finalTrainingData.trim(),
+      questions: questions // ⭐ Pass parsed questions array
     };
 
-    const result = await buildBotFromPrompt(prompt.trim(), buildOptions);
+    const result = await buildBotFromPrompt(prompt.trim());
 
     console.log('buildBotFromPrompt result data:', JSON.stringify(result.data, null, 2));
 
@@ -354,7 +373,7 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
         config: {
           files: {}
         },
-        questions: data.questions || [],
+        questions: data.questions || questions || [], // ⭐ Use parsed questions as fallback
         metadata: data.metadata || {},
         trainingDataUsed: !!finalTrainingData.trim()
       };
@@ -390,6 +409,14 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
 
     const formattedResponse = formatFileStructure(result.data);
 
+    // Debug logging to see what's in the response
+    console.log('=== DEBUG: Backend Generation ===');
+    console.log('Backend files:', formattedResponse.backend.files);
+    console.log('Backend files count:', Object.keys(formattedResponse.backend.files).length);
+    console.log('Frontend files:', formattedResponse.frontend.files);
+    console.log('Frontend files count:', Object.keys(formattedResponse.frontend.files).length);
+    console.log('=== END DEBUG ===');
+
     // ==== SAVE GENERATED BOT TO DB ====
     console.log(req.user.id)
     const newProject = new BotProject({
@@ -397,7 +424,7 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
       name: options.projectName || `Bot Project - ${new Date().toISOString()}`,
       description: prompt.substring(0, 100),
       initialPrompt: prompt.trim(),
-      questions: formattedResponse.questions,
+      questions: formattedResponse.questions, // ⭐ This will now be proper array
       files: {
         frontend: formattedResponse.frontend.files,
         backend: formattedResponse.backend.files,
@@ -451,6 +478,7 @@ export const generateBotFromPromptAndQuestions = async (req, res) => {
     });
   }
 };
+
 
 
 export const generateBotQuestions = async (req, res) => {

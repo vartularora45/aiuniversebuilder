@@ -280,6 +280,10 @@ class ChatbotGenerator {
   }
 
   async generateBackendCode(prompt, questions) {
+    console.log('🔧 Generating backend code...');
+    console.log('Prompt:', prompt.substring(0, 100) + '...');
+    console.log('Questions:', questions);
+    
     const messages = [
       { role: "system", content: PromptTemplates.backend.system },
       { role: "user", content: PromptTemplates.backend.user(prompt, questions) }
@@ -288,14 +292,23 @@ class ChatbotGenerator {
     const { result, modelUsed } = await this.client.callWithFallback(messages);
     const cleanedCode = Utils.cleanCode(result);
     
+    console.log('Backend code generated, length:', cleanedCode.length);
+    console.log('Backend code preview:', cleanedCode.substring(0, 200) + '...');
+    
     if (!cleanedCode.includes('express') || !cleanedCode.includes('socket.io')) {
+      console.error('Backend code validation failed - missing express or socket.io');
       throw new ChatbotGenerationError('Generated backend code is incomplete', 'INCOMPLETE_BACKEND');
     }
 
+    console.log('✅ Backend code generation successful');
     return { backendCode: cleanedCode, modelUsed };
   }
 
   async generateFrontendCode(prompt, questions) {
+    console.log('🎨 Generating frontend code...');
+    console.log('Prompt:', prompt.substring(0, 100) + '...');
+    console.log('Questions:', questions);
+    
     const messages = [
       { role: "system", content: PromptTemplates.frontend.system },
       { role: "user", content: PromptTemplates.frontend.user(prompt, questions) }
@@ -304,10 +317,15 @@ class ChatbotGenerator {
     const { result, modelUsed } = await this.client.callWithFallback(messages);
     const cleanedCode = Utils.cleanCode(result);
     
+    console.log('Frontend code generated, length:', cleanedCode.length);
+    console.log('Frontend code preview:', cleanedCode.substring(0, 200) + '...');
+    
     if (!cleanedCode.includes('React') && !cleanedCode.includes('useState')) {
+      console.error('Frontend code validation failed - missing React or useState');
       throw new ChatbotGenerationError('Generated frontend code is incomplete', 'INCOMPLETE_FRONTEND');
     }
 
+    console.log('✅ Frontend code generation successful');
     return { frontendCode: cleanedCode, modelUsed };
   }
 
