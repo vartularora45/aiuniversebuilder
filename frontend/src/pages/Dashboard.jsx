@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import CodeViewer from "../components/CodeViewer";
 import BotSuggestions from "../components/BotSuggestions"; // ⭐ NEW IMPORT
+import PreviewIframe from "../components/PreviewIframe"; // ⭐ NEW IMPORT
 
 const Dashboard = () => {
   // Core state
@@ -39,13 +40,15 @@ const Dashboard = () => {
 
   // Bot generation modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [botData, setBotData] = useState({
-    prompt: "",
-    questions: "",
-    trainingText: "",
-    trainingLink: "",
-    trainingFile: null,
-  });
+  // Change the initial botData state
+const [botData, setBotData] = useState({
+  prompt: "",
+  questions: [], // Change from "" to []
+  trainingText: "",
+  trainingLink: "",
+  trainingFile: null,
+});
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
@@ -62,6 +65,58 @@ const Dashboard = () => {
   // ⭐ NEW STATES FOR SUGGESTIONS
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [lastGeneratedBot, setLastGeneratedBot] = useState(null);
+  
+  // ⭐ NEW STATES FOR PREVIEW
+  const [showPreview, setShowPreview] = useState(false);
+   
+  // Helper functions for preview
+  const getFrontendCode = () => {
+    console.log('getFrontendCode called, botResponse:', botResponse);
+    if (botResponse?.data?.botFiles?.frontend) {
+      const frontendFiles = botResponse.data.botFiles.frontend;
+      console.log('frontendFiles:', frontendFiles);
+      if (frontendFiles.files && typeof frontendFiles.files === 'object') {
+        // Look for main React component files
+        const mainFiles = ['App.jsx', 'App.js', 'index.jsx', 'index.js', 'main.jsx', 'main.js'];
+        for (const fileName of mainFiles) {
+          if (frontendFiles.files[fileName]) {
+            console.log('Found frontend file:', fileName, 'with content length:', frontendFiles.files[fileName].length);
+            return frontendFiles.files[fileName];
+          }
+        }
+        // Return first file if no main file found
+        const firstFile = Object.values(frontendFiles.files)[0] || '';
+        console.log('Using first frontend file, content length:', firstFile.length);
+        return firstFile;
+      }
+    }
+    console.log('No frontend code found');
+    return '';
+  };
+
+  const getBackendCode = () => {
+    console.log('getBackendCode called, botResponse:', botResponse);
+    if (botResponse?.data?.botFiles?.backend) {
+      const backendFiles = botResponse.data.botFiles.backend;
+      console.log('backendFiles:', backendFiles);
+      if (backendFiles.files && typeof backendFiles.files === 'object') {
+        // Look for main server files
+        const mainFiles = ['server.js', 'app.js', 'index.js', 'main.js'];
+        for (const fileName of mainFiles) {
+          if (backendFiles.files[fileName]) {
+            console.log('Found backend file:', fileName, 'with content length:', backendFiles.files[fileName].length);
+            return backendFiles.files[fileName];
+          }
+        }
+        // Return first file if no main file found
+        const firstFile = Object.values(backendFiles.files)[0] || '';
+        console.log('Using first backend file, content length:', firstFile.length);
+        return firstFile;
+      }
+    }
+    console.log('No backend code found');
+    return '';
+  };
    
   // Extract projects from API response
   const extractProjects = (data) => {
@@ -97,55 +152,64 @@ const Dashboard = () => {
   }, []);
 
   const handleInputChange = (e) => {
-    const { name, value, type, files } = e.target;
-    
-    if (type === 'file') {
-      setBotData(prev => ({
-        ...prev,
-        [name]: files[0]
-      }));
-    } else {
-      setBotData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
+  const { name, value, type, files } = e.target;
+  
+  if (type === 'file') {
+    setBotData(prev => ({
+      ...prev,
+      [name]: files[0]
+    }));
+  } else if (name === 'questions') {
+    // Handle questions as array - split by comma and clean up
+    const questionsArray = value.split(',').map(q => q.trim()).filter(q => q.length > 0);
+    setBotData(prev => ({
+      ...prev,
+      [name]: questionsArray
+    }));
+  } else {
+    setBotData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }
+};
 
   // Generate questions from prompt
   const generateQuestionsFromPrompt = async () => {
-    if (!botData.prompt.trim()) {
-      setSubmitError("Please enter a prompt first");
-      return;
-    }
+  if (!botData.prompt.trim()) {
+    setSubmitError("Please enter a prompt first");
+    return;
+  }
 
-    setIsGeneratingQuestions(true);
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_URL}/prompts/generate-questions`,
-        {
-          prompt: botData.prompt,
-          context: {},
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (res.data.success) {
-        const questionsArray = res.data.data.questions;
-        setGeneratedQuestions(questionsArray);
-        setBotData({
-          ...botData,
-          questions: questionsArray.map(q => q.question).join(", "),
-        });
+  setIsGeneratingQuestions(true);
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_URL}/prompts/generate-questions`,
+      {
+        prompt: botData.prompt,
+        context: {},
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
       }
-    } catch (err) {
-      setSubmitError("Failed to generate questions");
-    } finally {
-      setIsGeneratingQuestions(false);
+    );
+
+    if (res.data.success) {
+      const questionsArray = res.data.data.questions;
+      setGeneratedQuestions(questionsArray);
+      // Set questions directly as array
+      setBotData(prev => ({
+        ...prev,
+        questions: questionsArray.map(q => q.question) // Keep as array
+      }));
     }
-  };
+  } catch (err) {
+    setSubmitError("Failed to generate questions");
+  } finally {
+    setIsGeneratingQuestions(false);
+  }
+};
+
 
   // View project functionality
   const handleViewFlow = (project) => {
@@ -221,114 +285,116 @@ const Dashboard = () => {
 
   // Toggle create modal
   const handleCreate = () => {
-    setIsCreateModalOpen(true);
-    setBotData({
-      prompt: "",
-      questions: "",
-      trainingText: "",
-      trainingLink: "",
-      trainingFile: null,
-    });
-    setGeneratedQuestions([]);
-    setSubmitError(null);
-    setSubmitSuccess(null);
-    setGeneratedBot(null);
-    setBotResponse(null);
-    setShowBotResult(false);
-    setShowCodeViewer(false);
-  };
+  setIsCreateModalOpen(true);
+  setBotData({
+    prompt: "",
+    questions: [], // Array instead of string
+    trainingText: "",
+    trainingLink: "",
+    trainingFile: null,
+  });
+  setGeneratedQuestions([]);
+  setSubmitError(null);
+  setSubmitSuccess(null);
+  setGeneratedBot(null);
+  setBotResponse(null);
+  setShowBotResult(false);
+  setShowCodeViewer(false);
+};
+
 
   // ⭐ NEW FUNCTION - Suggestion handler
   const handleSuggestionSelect = (suggestion) => {
-    // Close suggestions modal
-    setShowSuggestions(false);
-    
-    // Pre-fill create modal with suggestion data
-    setBotData({
-      prompt: suggestion.initialPrompt || suggestion.description || "",
-      questions: suggestion.tags ? suggestion.tags.join(", ") : "",
-      trainingText: "",
-      trainingLink: "",
-      trainingFile: null,
-    });
-    
-    // Keep create modal open for new bot
-    setShowBotResult(false);
-  };
+  setShowSuggestions(false);
+  
+  setBotData({
+    prompt: suggestion.initialPrompt || suggestion.description || "",
+    questions: suggestion.tags || [], // Keep as array
+    trainingText: "",
+    trainingLink: "",
+    trainingFile: null,
+  });
+  
+  setShowBotResult(false);
+};
+
 
   // Submit bot generation form - UPDATED WITH SUGGESTIONS
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError(null);
-    setSubmitSuccess(null);
+  e.preventDefault();
+  setIsSubmitting(true);
+  setSubmitError(null);
+  setSubmitSuccess(null);
 
-    // ⭐ NEW: Set data for suggestions BEFORE generation starts
-    setLastGeneratedBot({
-      _id: Date.now(), // temporary ID
-      name: "Generated Bot",
-      category: "other",
-      initialPrompt: botData.prompt,
-      description: botData.prompt.substring(0, 100) + "...",
-      tags: botData.questions ? botData.questions.split(",").map(q => q.trim()) : []
-    });
+  // ⭐ NEW: Set data for suggestions BEFORE generation starts
+  setLastGeneratedBot({
+    _id: Date.now(),
+    name: "Generated Bot",
+    category: "other",
+    initialPrompt: botData.prompt,
+    description: botData.prompt.substring(0, 100) + "...",
+    tags: botData.questions // Already an array
+  });
 
-    // ⭐ NEW: Show suggestions modal during generation
-    setTimeout(() => {
-      setShowSuggestions(true);
-    }, 2000); // 2 seconds बाद show होगा
+  // Show suggestions modal during generation
+  setTimeout(() => {
+    setShowSuggestions(true);
+  }, 2000);
 
-    const formData = new FormData();
-    formData.append("prompt", botData.prompt);
+  const formData = new FormData();
+  formData.append("prompt", botData.prompt);
 
-    if (botData.questions.trim()) {
-      const questions = botData.questions.split(",").map(q => q.trim()).filter(Boolean);
-      formData.append("questions", JSON.stringify(questions));
+  // Questions are already an array, just filter empty ones
+  if (botData.questions.length > 0) {
+    const cleanQuestions = botData.questions.filter(q => q.trim() !== '');
+    if (cleanQuestions.length > 0) {
+      formData.append("questions", JSON.stringify(cleanQuestions));
     }
+  }
 
-    formData.append("trainingText", botData.trainingText);
-    formData.append("trainingLink", botData.trainingLink);
+  formData.append("trainingText", botData.trainingText);
+  formData.append("trainingLink", botData.trainingLink);
 
-    if (botData.trainingFile) {
-      formData.append("trainingFile", botData.trainingFile);
-    }
+  if (botData.trainingFile) {
+    formData.append("trainingFile", botData.trainingFile);
+  }
 
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_URL}/prompts/generate-bot`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-      
-      console.log("Full Response:", res.data);
-      
-      if (res.data.success) {
-        setSubmitSuccess("Bot generated successfully!");
-        setBotResponse(res.data);
-        setGeneratedBot(res.data.data);
-        setShowBotResult(true);
-        
-        // ⭐ NEW: Update bot data after generation completes
-        setLastGeneratedBot(prev => ({
-          ...prev,
-          ...res.data.data
-        }));
-        
-        fetchProjects();
-      } else {
-        setSubmitError(res.data.message || "Failed to generate bot");
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_URL}/prompts/generate-bot`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
       }
-    } catch (err) {
-      setSubmitError(err.response?.data?.message || "Failed to generate bot");
-    } finally {
-      setIsSubmitting(false);
+    );
+    
+    console.log("Full Response:", res.data);
+    
+    if (res.data.success) {
+      setSubmitSuccess("Bot generated successfully!");
+      setBotResponse(res.data);
+      setGeneratedBot(res.data.data);
+      setShowBotResult(true);
+      
+      setLastGeneratedBot(prev => ({
+        ...prev,
+        ...res.data.data
+      }));
+      
+      fetchProjects();
+    } else {
+      setSubmitError(res.data.message || "Failed to generate bot");
     }
-  };
+  } catch (err) {
+    setSubmitError(err.response?.data?.message || "Failed to generate bot");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   // Filter projects
   const filteredProjects = projects.filter((project) => {
@@ -1055,21 +1121,26 @@ const Dashboard = () => {
                     )}
 
                     {/* Questions Section */}
-                    <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
-                      <div className="flex items-center gap-3 mb-4">
-                        <FileText className="w-5 h-5 text-blue-400" />
-                        <h3 className="text-lg font-semibold">Questions & Scenarios</h3>
-                        <span className="text-gray-500">(optional)</span>
-                      </div>
-                      <input
-                        type="text"
-                        name="questions"
-                        value={botData.questions}
-                        onChange={handleInputChange}
-                        placeholder="What questions should your bot handle? (comma-separated)"
-                        className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600/50 rounded-lg focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                    </div>
+                    {/* Questions Section */}
+<div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
+  <div className="flex items-center gap-3 mb-4">
+    <FileText className="w-5 h-5 text-blue-400" />
+    <h3 className="text-lg font-semibold">Questions & Scenarios</h3>
+    <span className="text-gray-500">(optional)</span>
+  </div>
+  <input
+    type="text"
+    name="questions"
+    value={botData.questions.join(', ')} // Convert array to string for display
+    onChange={handleInputChange}
+    placeholder="What questions should your bot handle? (comma-separated)"
+    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600/50 rounded-lg focus:outline-none focus:border-blue-500/50 transition-colors"
+  />
+  <div className="text-sm text-gray-500 mt-2">
+    {botData.questions.length > 0 && `${botData.questions.length} questions added`}
+  </div>
+</div>
+
 
                     {/* Training Data Section */}
                     <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
@@ -1278,6 +1349,100 @@ const Dashboard = () => {
                       View Code
                     </motion.button>
                     <motion.button
+                      onClick={() => setShowPreview(true)}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full font-bold flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-5 h-5" />
+                      Live Preview
+                    </motion.button>
+                    <motion.button
+                      onClick={() => {
+                        console.log('=== DEBUG: Current botResponse ===');
+                        console.log('botResponse:', botResponse);
+                        console.log('getFrontendCode():', getFrontendCode());
+                        console.log('getBackendCode():', getBackendCode());
+                        console.log('=== END DEBUG ===');
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="px-4 py-3 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-full font-bold flex items-center justify-center gap-2"
+                    >
+                      🐛 Debug
+                    </motion.button>
+                    <motion.button
+                      onClick={() => {
+                        // Test with a simple hardcoded component
+                        const testComponent = `
+function TestBot() {
+  const [messages, setMessages] = React.useState([
+    { id: 1, text: "Hello! I'm a test bot. How can I help you?", isBot: true },
+    { id: 2, text: "This is a test message from the user.", isBot: false }
+  ]);
+  
+  return React.createElement('div', { 
+    style: { 
+      padding: '20px', 
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      minHeight: '100vh',
+      fontFamily: 'Arial, sans-serif'
+    }
+  }, [
+    React.createElement('h1', { 
+      key: 'title',
+      style: { textAlign: 'center', marginBottom: '30px' }
+    }, '🤖 Test Bot Preview'),
+    React.createElement('div', { 
+      key: 'messages',
+      style: { maxWidth: '600px', margin: '0 auto' }
+    }, messages.map(msg => 
+      React.createElement('div', {
+        key: msg.id,
+        style: {
+          margin: '10px 0',
+          padding: '15px',
+          borderRadius: '10px',
+          background: msg.isBot ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+          textAlign: msg.isBot ? 'left' : 'right'
+        }
+      }, msg.text)
+    )),
+    React.createElement('div', {
+      key: 'status',
+      style: {
+        textAlign: 'center',
+        marginTop: '20px',
+        padding: '10px',
+        background: 'rgba(255,255,255,0.1)',
+        borderRadius: '8px'
+      }
+    }, 'Preview System Working! ✅')
+  ]);
+}`;
+                        
+                        // Temporarily set the preview with test data
+                        setBotResponse({
+                          data: {
+                            botFiles: {
+                              frontend: {
+                                files: {
+                                  'TestBot.jsx': testComponent
+                                }
+                              }
+                            }
+                          }
+                        });
+                        setShowPreview(true);
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full font-bold flex items-center justify-center gap-2"
+                    >
+                      🧪 Test Preview
+                    </motion.button>
+                    <motion.button
                       onClick={() => {
                         setIsCreateModalOpen(false);
                         setShowBotResult(false);
@@ -1319,6 +1484,18 @@ const Dashboard = () => {
         isVisible={showSuggestions}
         userToken={token}
         isGenerating={isSubmitting}
+      />
+
+      {/* ⭐ NEW - Preview Component */}
+      <PreviewIframe
+        frontendCode={getFrontendCode()}
+        backendCode={getBackendCode()}
+        isVisible={showPreview}
+        onClose={() => setShowPreview(false)}
+        onError={(error) => {
+          console.error('Preview error:', error);
+          setSubmitError(`Preview error: ${error}`);
+        }}
       />
     </div>
   );
