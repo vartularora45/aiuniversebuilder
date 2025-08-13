@@ -318,7 +318,7 @@ const AIUniverseBuilder = () => {
       ) : (
         
           
-            AI Universe Builder
+           BotSmith AI
             Let's design your perfect AI assistant, one step at a time.
           
 

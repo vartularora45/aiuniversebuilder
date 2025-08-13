@@ -22,7 +22,7 @@ const Navbar = () => (
           <Sparkles className="h-6 w-6 sm:h-7 sm:w-7 text-white animate-pulse" />
         </motion.div>
         <span className={`text-xl sm:text-2xl font-extrabold tracking-tight ${gradientText}`}>
-          AI Universe Builder
+          BotSmith AI
         </span>
       </div>
       {/* Right: Buttons */}
@@ -44,7 +44,7 @@ const Navbar = () => (
       </div>
        <div className="sm:hidden">
          <button className="p-2 rounded-md text-white/80 hover:bg-white/10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            <svg xmlns="" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
          </button>
        </div>
     </div>

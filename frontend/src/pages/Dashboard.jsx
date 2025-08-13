@@ -6,9 +6,10 @@ import { useUser } from "../context/userContext";
 import {
   Plus, Brain, Layers, Rocket, Settings, Zap, ChevronDown, Bell, User,
   Search, Globe, Palette, Code, Database, Star, FileText, Link, Upload,
-  Play, Pause, Trash2, Edit3, Eye, Download, RefreshCw
+  Play, Pause, Trash2, Edit3, Eye, Download, RefreshCw, Save, X
 } from "lucide-react";
 import CodeViewer from "../components/CodeViewer";
+import BotSuggestions from "../components/BotSuggestions"; // ⭐ NEW IMPORT
 
 const Dashboard = () => {
   // Core state
@@ -18,6 +19,18 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCodeViewer, setShowCodeViewer] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
+
+  // View/Edit Modal States
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    description: "",
+    status: "",
+    category: ""
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Navigation & user
   const navigate = useNavigate();
@@ -41,10 +54,14 @@ const Dashboard = () => {
   const [generatedQuestions, setGeneratedQuestions] = useState([]);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
 
-  // Bot generation result state - FIXED: New state to store complete response
+  // Bot generation result state
   const [generatedBot, setGeneratedBot] = useState(null);
-  const [botResponse, setBotResponse] = useState(null); // NEW STATE FOR COMPLETE RESPONSE
+  const [botResponse, setBotResponse] = useState(null);
   const [showBotResult, setShowBotResult] = useState(false);
+
+  // ⭐ NEW STATES FOR SUGGESTIONS
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [lastGeneratedBot, setLastGeneratedBot] = useState(null);
    
   // Extract projects from API response
   const extractProjects = (data) => {
@@ -77,68 +94,117 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchProjects();
-    // eslint-disable-next-line
   }, []);
-  // Add this function inside your Dashboard component, after the existing state declarations
-// and before the fetchProjects function
 
-const handleInputChange = (e) => {
-  const { name, value, type, files } = e.target;
-  
-  // Handle file inputs (like PDF upload)
-  if (type === 'file') {
-    setBotData(prev => ({
-      ...prev,
-      [name]: files[0] // Take the first file
-    }));
-  } else {
-    // Handle regular text inputs and textareas
-    setBotData(prev => ({
+  const handleInputChange = (e) => {
+    const { name, value, type, files } = e.target;
+    
+    if (type === 'file') {
+      setBotData(prev => ({
+        ...prev,
+        [name]: files[0]
+      }));
+    } else {
+      setBotData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  // Generate questions from prompt
+  const generateQuestionsFromPrompt = async () => {
+    if (!botData.prompt.trim()) {
+      setSubmitError("Please enter a prompt first");
+      return;
+    }
+
+    setIsGeneratingQuestions(true);
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_URL}/prompts/generate-questions`,
+        {
+          prompt: botData.prompt,
+          context: {},
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (res.data.success) {
+        const questionsArray = res.data.data.questions;
+        setGeneratedQuestions(questionsArray);
+        setBotData({
+          ...botData,
+          questions: questionsArray.map(q => q.question).join(", "),
+        });
+      }
+    } catch (err) {
+      setSubmitError("Failed to generate questions");
+    } finally {
+      setIsGeneratingQuestions(false);
+    }
+  };
+
+  // View project functionality
+  const handleViewFlow = (project) => {
+    setSelectedProject(project);
+    setShowViewModal(true);
+  };
+
+  // Edit project functionality
+  const handleEdit = (project) => {
+    setSelectedProject(project);
+    setEditFormData({
+      name: project.name || "",
+      description: project.description || "",
+      status: project.status || "draft",
+      category: project.category || "general"
+    });
+    setShowEditModal(true);
+  };
+
+  // Handle edit form input changes
+  const handleEditInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
       ...prev,
       [name]: value
     }));
-  }
-};
+  };
 
-  // Generate questions from prompt
-  // Inside your component
+  // Submit edit form
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setIsUpdating(true);
 
-const generateQuestionsFromPrompt = async () => {
-  if (!botData.prompt.trim()) {
-    setSubmitError("Please enter a prompt first");
-    return;
-  }
+    try {
+      const res = await axios.put(
+        `${import.meta.env.VITE_URL}/projects/${selectedProject._id}`,
+        editFormData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-  setIsGeneratingQuestions(true);
-  try {
-    const res = await axios.post(
-      `${import.meta.env.VITE_URL}/prompts/generate-questions`,
-      {
-        prompt: botData.prompt,
-        context: {},
-      },
-      {
-        headers: { Authorization: `Bearer ${token}` },
+      if (res.data.success) {
+        // Update projects in state
+        setProjects(prev => prev.map(p => 
+          p._id === selectedProject._id 
+            ? { ...p, ...editFormData }
+            : p
+        ));
+        setShowEditModal(false);
+        setSelectedProject(null);
       }
-    );
-
-    if (res.data.success) {
-      const questionsArray = res.data.data.questions; // full objects from API
-
-      setGeneratedQuestions(questionsArray); // Store full objects
-
-      // Store only the text versions in botData
-      setBotData({
-        ...botData,
-        questions: questionsArray.map(q => q.question).join(", "),
-      });
+    } catch (err) {
+      console.error("Failed to update project:", err);
+      alert("Failed to update project. Please try again.");
+    } finally {
+      setIsUpdating(false);
     }
-  } catch (err) {
-    setSubmitError("Failed to generate questions");
-  } finally {
-    setIsGeneratingQuestions(false);
-  }
-};
+  };
 
   // Delete project
   const handleDelete = async (id) => {
@@ -151,16 +217,6 @@ const generateQuestionsFromPrompt = async () => {
     } catch (err) {
       alert("Failed to delete project");
     }
-  };
-
-  // Edit project
-  const handleEdit = (id) => {
-    navigate(`/projects/edit/${id}`);
-  };
-
-  // View project flow
-  const handleViewFlow = (id) => {
-    navigate(`/projects/flow/${id}`);
   };
 
   // Toggle create modal
@@ -177,17 +233,50 @@ const generateQuestionsFromPrompt = async () => {
     setSubmitError(null);
     setSubmitSuccess(null);
     setGeneratedBot(null);
-    setBotResponse(null); // RESET NEW STATE
+    setBotResponse(null);
     setShowBotResult(false);
     setShowCodeViewer(false);
   };
 
-  // Submit bot generation form - FIXED
+  // ⭐ NEW FUNCTION - Suggestion handler
+  const handleSuggestionSelect = (suggestion) => {
+    // Close suggestions modal
+    setShowSuggestions(false);
+    
+    // Pre-fill create modal with suggestion data
+    setBotData({
+      prompt: suggestion.initialPrompt || suggestion.description || "",
+      questions: suggestion.tags ? suggestion.tags.join(", ") : "",
+      trainingText: "",
+      trainingLink: "",
+      trainingFile: null,
+    });
+    
+    // Keep create modal open for new bot
+    setShowBotResult(false);
+  };
+
+  // Submit bot generation form - UPDATED WITH SUGGESTIONS
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitError(null);
     setSubmitSuccess(null);
+
+    // ⭐ NEW: Set data for suggestions BEFORE generation starts
+    setLastGeneratedBot({
+      _id: Date.now(), // temporary ID
+      name: "Generated Bot",
+      category: "other",
+      initialPrompt: botData.prompt,
+      description: botData.prompt.substring(0, 100) + "...",
+      tags: botData.questions ? botData.questions.split(",").map(q => q.trim()) : []
+    });
+
+    // ⭐ NEW: Show suggestions modal during generation
+    setTimeout(() => {
+      setShowSuggestions(true);
+    }, 2000); // 2 seconds बाद show होगा
 
     const formData = new FormData();
     formData.append("prompt", botData.prompt);
@@ -216,13 +305,20 @@ const generateQuestionsFromPrompt = async () => {
         }
       );
       
-      console.log("Full Response:", res.data); // DEBUG LOG
+      console.log("Full Response:", res.data);
       
       if (res.data.success) {
         setSubmitSuccess("Bot generated successfully!");
-        setBotResponse(res.data); // STORE COMPLETE RESPONSE
-        setGeneratedBot(res.data.data); // KEEP OLD STATE FOR BACKWARD COMPATIBILITY
+        setBotResponse(res.data);
+        setGeneratedBot(res.data.data);
         setShowBotResult(true);
+        
+        // ⭐ NEW: Update bot data after generation completes
+        setLastGeneratedBot(prev => ({
+          ...prev,
+          ...res.data.data
+        }));
+        
         fetchProjects();
       } else {
         setSubmitError(res.data.message || "Failed to generate bot");
@@ -267,14 +363,12 @@ const generateQuestionsFromPrompt = async () => {
     return statusColors[status] || "bg-gray-400/30 border-gray-400/60 text-gray-200";
   };
 
-  // FIXED: Helper function to get file counts
   const getFileCount = (section) => {
     if (!botResponse?.data?.botFiles) return 0;
     
     const sectionData = botResponse.data.botFiles[section];
     if (!sectionData) return 0;
     
-    // Try different possible structures
     if (sectionData.files && typeof sectionData.files === 'object') {
       return Object.keys(sectionData.files).length;
     }
@@ -291,7 +385,6 @@ const generateQuestionsFromPrompt = async () => {
   const fadeInUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
   const stagger = { animate: { transition: { staggerChildren: 0.1 } } };
 
-  // --- Render ---
   return (
     <div className="min-h-screen bg-[#09090f] text-white font-mono relative">
       {/* Cosmic background */}
@@ -322,7 +415,6 @@ const generateQuestionsFromPrompt = async () => {
           }}
           className="absolute right-0 bottom-0 w-96 h-96 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-full blur-3xl"
         />
-        {/* Stars */}
         {[...Array(15)].map((_, i) => (
           <motion.div
             key={i}
@@ -356,7 +448,7 @@ const generateQuestionsFromPrompt = async () => {
               <div className="flex flex-col">
                 <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-500 mb-2">
                   <Rocket className="inline mr-3 w-8 h-8" />
-                  AI Universe Builder
+                  BotSmith
                 </h1>
                 <p className="text-gray-400 text-lg">
                   <Star className="inline w-4 h-4 mr-2" />
@@ -574,7 +666,7 @@ const generateQuestionsFromPrompt = async () => {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleViewFlow(project._id)}
+                          onClick={() => handleViewFlow(project)}
                           className="flex-1 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                         >
                           <Eye className="w-4 h-4" />
@@ -583,7 +675,7 @@ const generateQuestionsFromPrompt = async () => {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => handleEdit(project._id)}
+                          onClick={() => handleEdit(project)}
                           className="flex-1 px-3 py-2 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -607,6 +699,261 @@ const generateQuestionsFromPrompt = async () => {
         </main>
       </div>
 
+      {/* All your existing modals remain exactly the same */}
+      {/* View Project Modal */}
+      <AnimatePresence>
+        {showViewModal && selectedProject && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ y: 50, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 50, opacity: 0, scale: 0.95 }}
+              className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-blue-500/20 rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300">
+                    Project Details
+                  </h2>
+                  <p className="text-gray-400 mt-2">View project information and settings</p>
+                </div>
+                <button
+                  onClick={() => setShowViewModal(false)}
+                  className="p-2 rounded-full hover:bg-gray-700/50 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Project Info */}
+                <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-400" />
+                    Project Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Project Name</label>
+                      <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-600/50">
+                        {selectedProject.name}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Status</label>
+                      <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-600/50">
+                        <span className={`px-3 py-1 rounded-full border text-xs font-medium ${getStatusColor(selectedProject.status)}`}>
+                          {selectedProject.status?.replace('_', ' ') || "draft"}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Category</label>
+                      <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-600/50 capitalize">
+                        {selectedProject.category || "general"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Created</label>
+                      <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-600/50">
+                        {new Date(selectedProject.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm text-gray-300 mb-1">Description</label>
+                    <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-600/50 min-h-[80px]">
+                      {selectedProject.description || "No description available"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project Settings/Data */}
+                {selectedProject.prompt && (
+                  <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-purple-400" />
+                      AI Configuration
+                    </h3>
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">Bot Prompt</label>
+                      <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-600/50 max-h-40 overflow-y-auto">
+                        {selectedProject.prompt}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 pt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleEdit(selectedProject);
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full font-bold flex items-center justify-center gap-2"
+                  >
+                    <Edit3 className="w-5 h-5" />
+                    Edit Project
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowViewModal(false)}
+                    className="px-6 py-3 bg-gray-700/50 hover:bg-gray-600/50 rounded-full font-bold"
+                  >
+                    Close
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Project Modal */}
+      <AnimatePresence>
+        {showEditModal && selectedProject && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ y: 50, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 50, opacity: 0, scale: 0.95 }}
+              className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] border-2 border-purple-500/20 rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-300">
+                    Edit Project
+                  </h2>
+                  <p className="text-gray-400 mt-2">Update your project information</p>
+                </div>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="p-2 rounded-full hover:bg-gray-700/50 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="space-y-6">
+                {/* Basic Info */}
+                <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-purple-400" />
+                    Basic Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">Project Name *</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={editFormData.name}
+                        onChange={handleEditInputChange}
+                        required
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600/50 rounded-lg focus:outline-none focus:border-purple-500/50 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">Status</label>
+                      <select
+                        name="status"
+                        value={editFormData.status}
+                        onChange={handleEditInputChange}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600/50 rounded-lg focus:outline-none focus:border-purple-500/50 transition-colors"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="paused">Paused</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm text-gray-300 mb-2">Category</label>
+                    <select
+                      name="category"
+                      value={editFormData.category}
+                      onChange={handleEditInputChange}
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600/50 rounded-lg focus:outline-none focus:border-purple-500/50 transition-colors"
+                    >
+                      <option value="general">General</option>
+                      <option value="conversational">Conversational</option>
+                      <option value="creative">Creative</option>
+                      <option value="development">Development</option>
+                      <option value="analytics">Analytics</option>
+                      <option value="audio">Audio</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm text-gray-300 mb-2">Description</label>
+                    <textarea
+                      name="description"
+                      value={editFormData.description}
+                      onChange={handleEditInputChange}
+                      rows={4}
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600/50 rounded-lg focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+                      placeholder="Describe your project..."
+                    />
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 pt-6">
+                  <motion.button
+                    type="submit"
+                    disabled={isUpdating}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full font-bold flex items-center justify-center gap-2 hover:shadow-xl hover:shadow-purple-700/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isUpdating ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 1 }}
+                          className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                        />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-5 h-5" />
+                        Save Changes
+                      </>
+                    )}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="px-6 py-3 bg-gray-700/50 hover:bg-gray-600/50 rounded-full font-bold border border-gray-600/50 transition-all"
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Bot Creation Modal */}
       <AnimatePresence>
         {isCreateModalOpen && (
@@ -624,7 +971,7 @@ const generateQuestionsFromPrompt = async () => {
             >
               {!showBotResult ? (
                 <>
-                  {/* --- Bot Creation Modal Form --- */}
+                  {/* Bot Creation Modal Form */}
                   <div className="flex justify-between items-center mb-8">
                     <div>
                       <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-300">
@@ -690,22 +1037,22 @@ const generateQuestionsFromPrompt = async () => {
 
                     {/* Generated Questions Display */}
                    {generatedQuestions.length > 0 && (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="bg-green-900/20 border border-green-500/30 rounded-xl p-4"
-  >
-    <h4 className="text-green-400 font-medium mb-2">Generated Questions:</h4>
-    <ul className="text-sm text-gray-300 space-y-1">
-      {generatedQuestions.map((q, i) => (
-        <li key={i} className="flex items-start gap-2">
-          <span className="text-green-400 mt-1">•</span>
-          {q.question} {/* Access the string property */}
-        </li>
-      ))}
-    </ul>
-  </motion.div>
-)}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-green-900/20 border border-green-500/30 rounded-xl p-4"
+                      >
+                        <h4 className="text-green-400 font-medium mb-2">Generated Questions:</h4>
+                        <ul className="text-sm text-gray-300 space-y-1">
+                          {generatedQuestions.map((q, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-green-400 mt-1">•</span>
+                              {q.question}
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    )}
 
                     {/* Questions Section */}
                     <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
@@ -863,25 +1210,13 @@ const generateQuestionsFromPrompt = async () => {
                     </button>
                   </div>
 
-                  {/* FIXED Generated Files Summary Section */}
+                  {/* Generated Files Summary Section */}
                   {botResponse && (
                     <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700/30">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <Code className="w-5 h-5 text-blue-400" />
                         Generated Files Summary
                       </h3>
-                      
-                      {/* Debug info - only in development */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <div className="mb-4 p-3 bg-gray-900/50 rounded text-xs">
-                          <details>
-                            <summary className="cursor-pointer text-gray-400 mb-2">Debug: Bot Response Structure</summary>
-                            <pre className="text-gray-300 overflow-auto max-h-40">
-                              {JSON.stringify(botResponse.data?.botFiles, null, 2)}
-                            </pre>
-                          </details>
-                        </div>
-                      )}
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Frontend */}
@@ -963,18 +1298,28 @@ const generateQuestionsFromPrompt = async () => {
 
       {/* Code Viewer Modal */}
       <AnimatePresence>
-  {showCodeViewer && (generatedBot || botResponse) && (
-    <CodeViewer
-      generatedBot={generatedBot}
-      botResponse={botResponse}  
-      onClose={() => {
-        setShowCodeViewer(false);
-        setIsCreateModalOpen(false);
-        setShowBotResult(false);
-      }}
-    />
-  )}
-</AnimatePresence>
+        {showCodeViewer && (generatedBot || botResponse) && (
+          <CodeViewer
+            generatedBot={generatedBot}
+            botResponse={botResponse}  
+            onClose={() => {
+              setShowCodeViewer(false);
+              setIsCreateModalOpen(false);
+              setShowBotResult(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ⭐ NEW - BotSuggestions Component */}
+      <BotSuggestions
+        generatedBotData={lastGeneratedBot}
+        onSuggestionSelect={handleSuggestionSelect}
+        onClose={() => setShowSuggestions(false)}
+        isVisible={showSuggestions}
+        userToken={token}
+        isGenerating={isSubmitting}
+      />
     </div>
   );
 };

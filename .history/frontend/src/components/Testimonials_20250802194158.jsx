@@ -4,7 +4,7 @@ import { Quote } from "lucide-react";
 
 const testimonials = [
   {
-    quote: "AI Universe Builder lets my team ship new AI prototypes 10x faster. The collab tools rock.",
+    quote: "BotSmith AI lets my team ship new AI prototypes 10x faster. The collab tools rock.",
     name: "Alex R.",
     title: "Lead ML Engineer, LambdaForge"
   },

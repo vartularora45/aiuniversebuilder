@@ -16,15 +16,68 @@ export const createProject = async (req, res) => {
       });
     }
 
-    const { name, description, initialPrompt, category, tags } = req.body;
+    const { 
+      name, 
+      description, 
+      initialPrompt, 
+      category = 'other', 
+      tags = [], 
+      isPublic = false 
+    } = req.body;
+
+    // Manual validation according to BotProject schema
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project name is required'
+      });
+    }
+
+    if (name.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project name cannot exceed 100 characters'
+      });
+    }
+
+    if (!initialPrompt || !initialPrompt.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Initial prompt is required'
+      });
+    }
+
+    if (initialPrompt.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Initial prompt cannot exceed 1,000 characters'
+      });
+    }
+
+    if (description && description.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: 'Description cannot exceed 500 characters'
+      });
+    }
+
+    // Validate category
+    const validCategories = ['education', 'ecommerce', 'healthcare', 'finance', 'support', 'other'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid category. Must be one of: ${validCategories.join(', ')}`
+      });
+    }
 
     // Create project
     const project = await BotProject.create({
-      name,
-      description,
-      initialPrompt,
+      name: name.trim(),
+      description: description?.trim(),
+      initialPrompt: initialPrompt.trim(),
       category,
-      tags,
+      tags: Array.isArray(tags) ? tags.map(tag => tag.trim()).filter(tag => tag) : [],
+      isPublic,
       owner: req.user.id
     });
 
@@ -66,6 +119,17 @@ export const createProject = async (req, res) => {
 
   } catch (error) {
     console.error('Create project error:', error);
+    
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: messages
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Server error during project creation',
@@ -73,8 +137,6 @@ export const createProject = async (req, res) => {
     });
   }
 };
-
-
 
 // @desc    Get user's projects
 // @route   GET /api/projects
@@ -85,15 +147,27 @@ export const getProjects = async (req, res) => {
       page = 1, 
       limit = 10, 
       category, 
-      status 
+      status,
+      search,
+      isPublic
     } = req.query;
 
     // Build query with conditional properties
     const query = {
       owner: req.user.id,
       ...(category && { category }),
-      ...(status && { status })
+      ...(status && { status }),
+      ...(isPublic !== undefined && { isPublic: isPublic === 'true' })
     };
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { tags: { $in: [new RegExp(search, 'i')] } }
+      ];
+    }
 
     // Parse pagination values
     const pageNum = parseInt(page);
@@ -149,8 +223,8 @@ export const getProject = async (req, res) => {
       });
     }
 
-    // Check ownership
-    if (project.owner._id.toString() !== req.user.id) {
+    // Check ownership or if project is public
+    if (project.owner._id.toString() !== req.user.id && !project.isPublic) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to access this project'
@@ -171,6 +245,14 @@ export const getProject = async (req, res) => {
 
   } catch (error) {
     console.error('Get project error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid project ID format'
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Server error while fetching project',
@@ -185,7 +267,15 @@ export const getProject = async (req, res) => {
 export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, category, status, tags } = req.body;
+    const { 
+      name, 
+      description, 
+      initialPrompt, 
+      category, 
+      status, 
+      tags, 
+      isPublic 
+    } = req.body;
 
     let project = await BotProject.findById(id);
 
@@ -204,14 +294,80 @@ export const updateProject = async (req, res) => {
       });
     }
 
+    // Validation for updated fields
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Project name cannot be empty'
+        });
+      }
+      if (name.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Project name cannot exceed 100 characters'
+        });
+      }
+    }
+
+    if (initialPrompt !== undefined) {
+      if (!initialPrompt.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Initial prompt cannot be empty'
+        });
+      }
+      if (initialPrompt.length > 1000) {
+        return res.status(400).json({
+          success: false,
+          message: 'Initial prompt cannot exceed 1,000 characters'
+        });
+      }
+    }
+
+    if (description !== undefined && description.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: 'Description cannot exceed 500 characters'
+      });
+    }
+
+    // Validate category
+    if (category !== undefined) {
+      const validCategories = ['education', 'ecommerce', 'healthcare', 'finance', 'support', 'other'];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid category. Must be one of: ${validCategories.join(', ')}`
+        });
+      }
+    }
+
+    // Validate status
+    if (status !== undefined) {
+      const validStatuses = ['draft', 'in_progress', 'completed', 'deployed'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        });
+      }
+    }
+
     // Update project with only provided fields
-    const updateFields = {
-      ...(name && { name }),
-      ...(description && { description }),
-      ...(category && { category }),
-      ...(status && { status }),
-      ...(tags && { tags })
-    };
+    const updateFields = {};
+    
+    if (name !== undefined) updateFields.name = name.trim();
+    if (description !== undefined) updateFields.description = description?.trim();
+    if (initialPrompt !== undefined) updateFields.initialPrompt = initialPrompt.trim();
+    if (category !== undefined) updateFields.category = category;
+    if (status !== undefined) updateFields.status = status;
+    if (isPublic !== undefined) updateFields.isPublic = isPublic;
+    if (tags !== undefined) {
+      updateFields.tags = Array.isArray(tags) 
+        ? tags.map(tag => tag.trim()).filter(tag => tag)
+        : [];
+    }
 
     project = await BotProject.findByIdAndUpdate(
       id,
@@ -227,6 +383,23 @@ export const updateProject = async (req, res) => {
 
   } catch (error) {
     console.error('Update project error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid project ID format'
+      });
+    }
+
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: messages
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Server error during project update',
@@ -272,9 +445,73 @@ export const deleteProject = async (req, res) => {
 
   } catch (error) {
     console.error('Delete project error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid project ID format'
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Server error during project deletion',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get project statistics
+// @route   GET /api/projects/stats
+// @access  Private
+export const getProjectStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const stats = await BotProject.aggregate([
+      { $match: { owner: mongoose.Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: null,
+          totalProjects: { $sum: 1 },
+          draftCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] }
+          },
+          inProgressCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] }
+          },
+          completedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+          },
+          deployedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'deployed'] }, 1, 0] }
+          },
+          publicCount: {
+            $sum: { $cond: ['$isPublic', 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    const result = stats[0] || {
+      totalProjects: 0,
+      draftCount: 0,
+      inProgressCount: 0,
+      completedCount: 0,
+      deployedCount: 0,
+      publicCount: 0
+    };
+
+    res.json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Get project stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching project statistics',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

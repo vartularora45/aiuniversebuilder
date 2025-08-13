@@ -18,7 +18,7 @@ const Navbar = () => (
           <Sparkles className="h-7 w-7 text-fuchsia-300 drop-shadow-neon animate-pulse" />
         </motion.div>
         <span className="text-2xl font-extrabold bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-indigo-400 bg-clip-text text-transparent tracking-tight">
-          AI Universe Builder
+         BotSmith AI
         </span>
       </div>
       {/* Right: Buttons */}
@@ -61,7 +61,7 @@ const Navbar = () => (
           <Sparkles className="h-7 w-7 text-fuchsia-300 drop-shadow-neon animate-pulse" />
         </motion.div>
         <span className="text-2xl font-extrabold bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-indigo-400 bg-clip-text text-transparent tracking-tight">
-          AI Universe Builder
+         BotSmith AI
         </span>
       </div>
       {/* Right: Buttons */}

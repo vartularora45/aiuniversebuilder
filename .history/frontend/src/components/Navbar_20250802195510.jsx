@@ -22,7 +22,7 @@ const Navbar = () => {
           whileHover={{ scale: 1.04 }}
           className="text-[1.5rem] md:text-2xl font-extrabold bg-gradient-to-r from-white via-fuchsia-300 to-cyan-300 text-transparent bg-clip-text tracking-tight"
         >
-          AI Universe Builder
+          BotSmith AI
         </motion.h1>
       </div>
 

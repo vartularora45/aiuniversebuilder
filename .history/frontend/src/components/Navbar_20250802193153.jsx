@@ -14,7 +14,7 @@ const Navbar = () => {
           <Sparkles className="w-6 h-6 text-white drop-shadow" />
         </motion.div>
         <span className="text-lg font-semibold tracking-tight text-white">
-          AI Universe Builder
+          BotSmith AI
         </span>
       </div>
       <div className="flex items-center gap-2">

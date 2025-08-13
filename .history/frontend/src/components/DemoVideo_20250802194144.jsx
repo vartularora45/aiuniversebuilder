@@ -17,7 +17,7 @@ const DemoVideo = () => (
         <iframe
           className="w-full h-full"
           src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-          title="AI Universe Builder Demo"
+          title="BotSmith Builder Demo"
           frameBorder="0"
           allow="autoplay; encrypted-media"
           allowFullScreen

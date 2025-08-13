@@ -36,7 +36,7 @@ const Navbar = () => {
             <Sparkles className="h-6 w-6 sm:h-7 sm:w-7 text-white animate-pulse" />
           </motion.div>
           <span className={`text-xl sm:text-2xl font-extrabold tracking-tight ${gradientText}`}>
-            AI Universe Builder
+            
           </span>
         </div>
         {/* Right: Buttons */}
