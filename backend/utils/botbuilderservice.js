@@ -4,10 +4,10 @@ dotenv.config();
 
 // Configuration Constants
 const CONFIG = {
-  OPENROUTER_API_URL: "https://openrouter.ai/api/v1/chat/completions",
+  TOGETHER_API_URL: "https://api.together.xyz/v1/chat/completions",
   REQUEST_TIMEOUT: 30000,
   DEFAULT_TEMPERATURE: 0.3,
-  MAX_TOKENS: 50,
+  MAX_TOKENS: 6000, // Increased for better code generation
   RATE_LIMIT: {
     MAX_RETRIES: 3,
     RETRY_DELAY: 1000
@@ -16,14 +16,14 @@ const CONFIG = {
 
 const MODELS = {
   PRIMARY: [
-    "meta-llama/llama-3-70b-instruct",
-    "qwen/qwen-2.5-72b-instruct",
-    "anthropic/claude-3-opus"
+    "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "mistralai/Mixtral-8x7B-Instruct-v0.1"
   ],
   FALLBACK: [
-    "openai/gpt-4o",
-    "meta-llama/llama-3-8b-instruct",
-    "openai/gpt-3.5-turbo"
+    "NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO",
+    "meta-llama/Llama-2-70b-chat-hf",
+    "meta-llama/Llama-2-13b-chat-hf"
   ]
 };
 
@@ -37,30 +37,31 @@ class ChatbotGenerationError extends Error {
   }
 }
 
-// Optimized API Client
-class OpenRouterClient {
+// Together AI Client
+class TogetherAIClient {
   constructor() {
-    this.apiKey = process.env.OPENROUTER_API_KEY;
+    this.apiKey ="39b13c008f06062c9986ca3ef4de456699663527d14bd6ba3519f093cb459856" ;
     if (!this.apiKey) {
-      throw new ChatbotGenerationError('OpenRouter API key not found', 'MISSING_API_KEY');
+      throw new ChatbotGenerationError('Together AI API key not found', 'MISSING_API_KEY');
     }
   }
 
   async makeRequest(messages, model, retryCount = 0) {
     try {
       const response = await axios.post(
-        CONFIG.OPENROUTER_API_URL,
+        CONFIG.TOGETHER_API_URL,
         {
           model,
           temperature: CONFIG.DEFAULT_TEMPERATURE,
           max_tokens: CONFIG.MAX_TOKENS,
           messages,
+          stream: false,
         },
         {
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
-            'X-Title': 'AI Chatbot Generator'
+            'User-Agent': 'AI-Chatbot-Generator/1.0'
           },
           timeout: CONFIG.REQUEST_TIMEOUT,
         }
@@ -77,6 +78,15 @@ class OpenRouterClient {
         await this.delay(CONFIG.RATE_LIMIT.RETRY_DELAY * (retryCount + 1));
         return this.makeRequest(messages, model, retryCount + 1);
       }
+      
+      // Enhanced error handling for Together AI specific errors
+      if (error.response?.status === 402) {
+        throw new ChatbotGenerationError(
+          'Insufficient credits in Together AI account', 
+          'INSUFFICIENT_CREDITS'
+        );
+      }
+      
       throw error;
     }
   }
@@ -108,7 +118,7 @@ class OpenRouterClient {
 
     const errorDetails = errors.map(e => `${e.model}: ${e.error}`).join('; ');
     throw new ChatbotGenerationError(
-      `All AI models failed. Consider checking your API key and quota.`,
+      `All AI models failed. Consider checking your API key and credits.`,
       'ALL_MODELS_FAILED',
       { errors: errorDetails }
     );
@@ -160,7 +170,7 @@ const Utils = {
   }
 };
 
-// Prompt Templates
+// Prompt Templates (optimized for Together AI models)
 const PromptTemplates = {
   questions: {
     system: `You are an expert UX researcher specializing in conversational AI design.
@@ -177,13 +187,17 @@ REQUIREMENTS:
 PSYCHOLOGY PRINCIPLES:
 - Personalization for user's interests
 - Progressive disclosure (broad → specific)
-- Address real user pain points`,
+- Address real user pain points
+
+FORMAT: Return only valid JSON array like ["Question 1?", "Question 2?", ...]`,
 
     user: (prompt) => `Analyze this chatbot prompt and generate irresistible follow-up questions:
 
 CHATBOT: "${prompt}"
 
-Generate questions that make users think "I need to know this!" Focus on the most engaging aspects.`
+Generate questions that make users think "I need to know this!" Focus on the most engaging aspects.
+
+Return only the JSON array, no other text.`
   },
 
   backend: {
@@ -199,7 +213,9 @@ Create a complete Express.js server with:
 - Production-ready error handling
 - Security best practices
 
-Architecture: Single server.js file, modular organization, clean separation of concerns.`,
+Architecture: Single server.js file, modular organization, clean separation of concerns.
+
+Start your response directly with the import statements.`,
 
     user: (prompt, questions) => `Create Node.js backend for this chatbot:
 
@@ -210,7 +226,9 @@ Requirements:
 - Embody the personality from the prompt
 - Handle example questions naturally
 - Include conversation memory
-- Production-ready with modern practices`
+- Production-ready with modern practices
+
+Return only the complete JavaScript code for server.js, no explanations.`
   },
 
   frontend: {
@@ -227,7 +245,9 @@ Create a complete React App.jsx with:
 - Interactive suggested questions
 - Beautiful, personality-matching design
 
-Connect to WebSocket at 'ws://localhost:3001'`,
+Connect to WebSocket at 'ws://localhost:3001'
+
+Start your response directly with the import statements.`,
 
     user: (prompt, questions) => `Build React frontend for this chatbot:
 
@@ -239,14 +259,16 @@ Requirements:
 - Present questions as beautiful, clickable elements
 - Create engaging welcome experience
 - Smooth transitions and micro-interactions
-- Mobile-first responsive design`
+- Mobile-first responsive design
+
+Return only the complete React component code, no explanations.`
   }
 };
 
 // Enhanced Generators
 class ChatbotGenerator {
   constructor() {
-    this.client = new OpenRouterClient();
+    this.client = new TogetherAIClient();
   }
 
   async generateQuestions(prompt) {
@@ -395,8 +417,8 @@ NODE_ENV=development
 # CORS Settings  
 CORS_ORIGIN=http://localhost:5173
 
-# API Keys (Add your keys here)
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+# Together AI Configuration
+TOGETHER_API_KEY=your_together_api_key_here
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -404,11 +426,11 @@ RATE_LIMIT_MAX_REQUESTS=100`,
 
       "README.md": `# AI Chatbot Project 🤖
 
-An intelligent chatbot application built with Node.js, Express, React, and Socket.io.
+An intelligent chatbot application built with Node.js, Express, React, Socket.io, and Together AI.
 
 ## Features
 - Real-time messaging with WebSocket
-- AI-powered responses
+- AI-powered responses using Together AI
 - Modern React UI with Tailwind CSS
 - Production-ready backend with security middleware
 - Docker support for easy deployment
@@ -418,6 +440,7 @@ An intelligent chatbot application built with Node.js, Express, React, and Socke
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
+- Together AI API key
 
 ### Development Setup
 
@@ -426,7 +449,7 @@ An intelligent chatbot application built with Node.js, Express, React, and Socke
 git clone <your-repo>
 cd chatbot-project
 cp .env.example .env
-# Add your OpenRouter API key to .env
+# Add your Together AI API key to .env
 \`\`\`
 
 2. **Backend:**
@@ -442,6 +465,13 @@ cd frontend
 npm install
 npm run dev  # Starts on port 5173
 \`\`\`
+
+### Getting Together AI API Key
+1. Visit [Together AI](https://api.together.xyz/)
+2. Sign up for an account
+3. Navigate to API Keys section
+4. Create a new API key
+5. Add it to your .env file
 
 ### Docker Deployment
 \`\`\`bash
@@ -465,6 +495,12 @@ docker-compose up --build
 - \`POST /api/chat\` - HTTP chat endpoint
 - \`GET /api/health\` - Health check
 - WebSocket on \`ws://localhost:3001\`
+
+## Available Models
+- Meta-Llama-3.1-70B-Instruct-Turbo
+- Meta-Llama-3.1-8B-Instruct-Turbo
+- Mixtral-8x7B-Instruct-v0.1
+- Nous-Hermes-2-Mixtral-8x7B-DPO
 
 ## Deployment
 Ready for deployment on Heroku, DigitalOcean, AWS, or any Node.js hosting platform.`,
@@ -666,7 +702,7 @@ export default defineConfig({
 
   async buildBotFromPrompt(prompt) {
     try {
-      console.log('🚀 Starting chatbot generation...');
+      console.log('🚀 Starting chatbot generation with Together AI...');
       
       // Step 1: Generate questions
       console.log('📝 Generating questions...');
@@ -701,7 +737,8 @@ export default defineConfig({
             },
             generatedAt: new Date().toISOString(),
             prompt: prompt,
-            version: '2.0.0'
+            version: '2.0.0',
+            provider: 'Together AI'
           },
         },
       };

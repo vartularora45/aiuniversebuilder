@@ -41,7 +41,11 @@ const botSchema = new mongoose.Schema({
     },
     maxTokens: {
       type: Number,
+<<<<<<< HEAD
       default: 50
+=======
+      default: 4
+>>>>>>> 4d93828451bf24454517be5d6a2b97a1d41efb16
     },
     topP: {
       type: Number,
