@@ -7,7 +7,7 @@ const CONFIG = {
   OPENROUTER_API_URL: "https://openrouter.ai/api/v1/chat/completions",
   REQUEST_TIMEOUT: 30000,
   DEFAULT_TEMPERATURE: 0.3,
-  MAX_TOKENS: 256,
+  MAX_TOKENS: 50,
   RATE_LIMIT: {
     MAX_RETRIES: 3,
     RETRY_DELAY: 1000

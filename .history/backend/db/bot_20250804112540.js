@@ -11,7 +11,7 @@ const BotSchema = new mongoose.Schema({
   llmProvider: { type: String, default: 'openai' },
   config: {
     temperature: { type: Number, default: 0.7 },
-    maxTokens: { type: Number, default: 256 }
+    maxTokens: { type: Number, default: 50 }
     // Extend as needed
   },
   status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' },
